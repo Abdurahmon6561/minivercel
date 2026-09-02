@@ -24,6 +24,7 @@ from ..gitops import (
 )
 from ..github import GitHubError, split_repo
 from ..store import Conflict, is_valid_slug, slugify
+from ..urls import site_url
 
 log = logging.getLogger("minivercel.projects")
 
@@ -55,7 +56,7 @@ def _project_response(project: dict, settings: Settings) -> dict:
         "slug": project["slug"],
         "live_deployment_id": project.get("live_deployment_id"),
         "created_at": project.get("created_at"),
-        "url": "%s/s/%s/" % (settings.public_base_url, project["slug"]),
+        "url": site_url(settings, project["slug"]),
         # Phase 3/4 state. Note what is absent: `webhook_secret` and
         # `deploy_token_sha256` are secrets and never leave the server.
         "repo_full_name": project.get("repo_full_name"),

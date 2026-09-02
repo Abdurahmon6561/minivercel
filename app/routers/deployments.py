@@ -38,6 +38,7 @@ from ..deployer import QuotaExceeded, cleanup, fail, mark_failed, publish
 from ..deps import get_store, upload_limiter
 from ..store import Conflict, Store, is_valid_slug, slugify
 from ..supabase import SupabaseError
+from ..urls import site_url
 from ..upload_stream import MalformedUpload, UploadTooLarge, receive_upload
 from ..zipvalidate import ZipRejected
 
@@ -96,10 +97,6 @@ async def require_upload_principal(
     return Principal(user=await verify_token(token, settings))
 
 
-def _public_site_url(settings: Settings, slug: str) -> str:
-    return "%s/s/%s/" % (settings.public_base_url, slug)
-
-
 def _deployment_response(deployment: dict, project: dict, settings: Settings) -> dict:
     return {
         "id": deployment["id"],
@@ -114,7 +111,7 @@ def _deployment_response(deployment: dict, project: dict, settings: Settings) ->
             "name": project["name"],
             "slug": project["slug"],
         },
-        "url": _public_site_url(settings, project["slug"]),
+        "url": site_url(settings, project["slug"]),
     }
 
 

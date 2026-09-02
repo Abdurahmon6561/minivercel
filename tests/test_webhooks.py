@@ -215,17 +215,24 @@ async def test_an_accepted_push_answers_202_immediately(client, supabase, monkey
 
     started = []
 
-    async def fake_deploy(store, settings, *, project, commit_sha=None):
-        started.append(commit_sha)
-        return None
+    async def fake_deploy(store, settings, *, project, commit_sha=None, deployment_id=None):
+        started.append((commit_sha, deployment_id))
+        return deployment_id
 
     monkeypatch.setattr("app.routers.webhooks.deploy_from_repo", fake_deploy)
 
     body = push_payload()
     response = await post_hook(client, body, signature=sign(body))
     assert response.status_code == 202
-    assert response.json()["status"] == "accepted"
-    assert started == [SHA]
+    assert response.json()["status"] == "queued"
+
+    # The row exists and its id is in the 202, so the dashboard has something to
+    # poll while the background task runs (AUTODEPLOY.md section 8).
+    deployment_id = response.json()["deployment_id"]
+    assert [row["id"] for row in supabase.tables["deployments"]] == [deployment_id]
+    assert supabase.tables["deployments"][0]["commit_sha"] == SHA
+    assert started == [(SHA, deployment_id)]
+
 
 
 async def test_malformed_json_is_rejected(client, supabase):

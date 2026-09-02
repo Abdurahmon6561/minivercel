@@ -24,10 +24,10 @@ from ..gitops import (
     disable_builds,
     enable_builds,
     new_webhook_secret,
-    webhook_url,
 )
 from ..github import GitHubError, split_repo
 from ..store import Conflict, slugify
+from ..urls import site_url, webhook_url
 
 log = logging.getLogger("minivercel.github")
 
@@ -156,7 +156,7 @@ async def import_repo(
         "id": fresh["id"],
         "name": fresh["name"],
         "slug": fresh["slug"],
-        "url": "%s/s/%s/" % (settings.public_base_url, fresh["slug"]),
+        "url": site_url(settings, fresh["slug"]),
         "repo_full_name": repo.full_name,
         "repo_branch": branch,
         "auto_deploy_enabled": True,

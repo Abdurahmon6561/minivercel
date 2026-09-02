@@ -2,6 +2,15 @@
 
 > Companion to SPEC.md. Implement after Phase 2 (auth + dashboard) works.
 
+> **AMENDED after Phase 1 shipped.** Supabase Storage deliberately overrides
+> `text/html` to `text/plain` on public URLs (supabase/storage#186,
+> supabase discussions #2557 and #39110). It is platform policy, not a bug, and
+> our uploads are correct — `storage.objects.metadata->>'mimetype'` reads
+> `text/html; charset=utf-8`. Therefore SPEC.md non-negotiable #2 has an
+> exception: **HTML is proxied through FastAPI with the correct Content-Type;
+> every other asset type still gets the 307 redirect to Storage.** Wherever this
+> file says "redirect", read it as "redirect, except HTML".
+
 ---
 
 ## 1. URL strategy
@@ -39,6 +48,10 @@ Switching to subdomains later = change two environment variables.
 ---
 
 ## 2. Random project names
+
+**Status: not implemented yet.** Slugs are currently caller-supplied
+(`smoke-1788339789`, `bbd-test-deploy`). Do this before the platform is public —
+the RESERVED set below is a security control, not decoration.
 
 Vercel style: readable words plus a short random suffix. Never expose database
 IDs in URLs, and never let the user pick a raw slug (they will pick `admin`).
@@ -149,6 +162,9 @@ router = APIRouter()
 
 
 def verify_signature(payload: bytes, signature: str | None, secret: str) -> bool:
+    # compare_digest, never ==. A plain == returns as soon as two bytes differ,
+    # so response time leaks how much of the signature was guessed correctly.
+    # That is enough to forge a signature byte by byte over many requests.
     if not signature or not signature.startswith("sha256="):
         return False
     expected = "sha256=" + hmac.new(

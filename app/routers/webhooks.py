@@ -166,24 +166,46 @@ async def github_push(
         response.status_code = status.HTTP_202_ACCEPTED
         return _accepted("ignored", "GitHub Actions will deploy this push")
 
+    # The row is created here, not in the background task, so the 202 can carry
+    # its id: AUTODEPLOY.md section 8 has the dashboard polling
+    # GET /api/deployments/{id} to watch pending -> ready. Created in the task
+    # instead, there would be nothing to poll until the deploy had already
+    # started, and a task killed before its first write would leave no trace.
+    deployment = await store.create_deployment(project["id"], after or None)
     await record("deploying", "push %s accepted" % (after[:7] or "?"))
-    log.info("webhook accepted for %s at %s", project["slug"], after[:7])
+    log.info(
+        "webhook accepted for %s at %s -> deployment %s",
+        project["slug"],
+        after[:7],
+        deployment["id"],
+    )
 
     background.add_task(
-        _deploy_in_background, settings, project, after or None
+        _deploy_in_background, settings, project, after or None, deployment["id"]
     )
     response.status_code = status.HTTP_202_ACCEPTED
-    return {"status": "accepted", "commit": after[:7] or None}
+    return {
+        "status": "queued",
+        "deployment_id": deployment["id"],
+        "commit": after[:7] or None,
+    }
 
 
 async def _deploy_in_background(
-    settings: Settings, project: dict, commit_sha: str | None
+    settings: Settings,
+    project: dict,
+    commit_sha: str | None,
+    deployment_id: str,
 ) -> None:
     """Runs after the 202. Never raises - the task runner has nowhere to report."""
     store = get_store()
     try:
         deployment_id = await deploy_from_repo(
-            store, settings, project=project, commit_sha=commit_sha
+            store,
+            settings,
+            project=project,
+            commit_sha=commit_sha,
+            deployment_id=deployment_id,
         )
         deployment = (
             await store.get_deployment(deployment_id) if deployment_id else None

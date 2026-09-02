@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from app.store import slugify
+import re
+
+import pytest
+
+from app.naming import generate_slug, is_reserved
+from app.store import is_valid_slug, slugify
 
 from .conftest import OTHER_USER_ID, USER_ID, auth_headers, deploy, make_zip
 
@@ -194,3 +199,47 @@ async def test_list_does_not_scale_queries_with_project_count(client, supabase):
     rows = (await client.get("/api/projects", headers=auth_headers())).json()
     assert len(rows) == 6
     assert calls == ["projects", "deployments"]
+
+
+# -- reserved slugs (AUTODEPLOY.md section 2) ---------------------------------
+
+
+@pytest.mark.parametrize(
+    "slug", ["api", "admin", "www", "app", "docs", "assets", "health", "static"]
+)
+async def test_reserved_slugs_are_refused(client, slug):
+    """RESERVED is a security control, not decoration.
+
+    In path mode `/s/api/` is harmless. In the addendum's subdomain mode a
+    project called `api` becomes `api.yourdomain.com` and hijacks the API.
+    """
+    response = await client.post(
+        "/api/projects", headers=auth_headers(), json={"name": "X", "slug": slug}
+    )
+    assert response.status_code == 400
+
+
+async def test_a_reserved_name_gets_a_generated_slug_instead(client):
+    """A repository called `docs` is ordinary; taking the slug `docs` is not."""
+    response = await client.post(
+        "/api/projects", headers=auth_headers(), json={"name": "docs"}
+    )
+    assert response.status_code == 201
+    slug = response.json()["slug"]
+    assert slug != "docs"
+    assert not is_reserved(slug)
+    # adjective-noun-NNNN
+    assert re.match(r"^[a-z]+-[a-z]+-\d{4}$", slug), slug
+
+
+def test_generated_slugs_are_valid_and_never_reserved():
+    for _ in range(500):
+        slug = generate_slug()
+        assert is_valid_slug(slug)
+        assert not is_reserved(slug)
+
+
+def test_reserved_covers_our_own_route_segments():
+    # Anything we serve from the API origin would collide in subdomain mode.
+    for segment in ("api", "s", "health", "docs", "openapi"):
+        assert is_reserved(segment)

@@ -60,6 +60,8 @@ Two rules explain most of the design:
 | [app/supabase.py](app/supabase.py) | Thin async PostgREST + Storage client. |
 | [db/](db/) | SQL to run in the Supabase editor, in order. |
 | [app/deployer.py](app/deployer.py) | The one deployment pipeline. Every source of a zip goes through it. |
+| [app/urls.py](app/urls.py) | The one URL builder. `URL_MODE=subdomain` moves every site without touching a handler. |
+| [app/naming.py](app/naming.py) | Slug generation and the RESERVED set that keeps a project off `api` or `www`. |
 | [app/gitops.py](app/gitops.py) | Import, push deploys, and Actions build enablement. |
 | [app/github.py](app/github.py) | GitHub REST: repos, zipballs, webhooks, workflow files, secrets. |
 | [app/deploytoken.py](app/deploytoken.py) | Per-project deploy tokens. Stored as sha256, never in the clear. |
@@ -68,7 +70,7 @@ Two rules explain most of the design:
 | [app/crypto.py](app/crypto.py) | Fernet wrapper for the one secret we must store and read back. |
 | [web/](web/) | Phase 2 dashboard: React + Vite + Tailwind, deployed on Vercel. |
 | [scripts/smoke.sh](scripts/smoke.sh) | The Phase 1 curl deliverable, end to end. |
-| [tests/](tests/) | 298 tests, no network required. |
+| [tests/](tests/) | 315 tests, no network required. |
 
 ---
 
@@ -170,7 +172,7 @@ uvicorn app.main:app --reload
 configured, so you can tell "misconfigured" apart from "down".
 
 ```bash
-python -m pytest              # 298 tests, no network, no Supabase project
+python -m pytest              # 315 tests, no network, no Supabase project
 ```
 
 ---

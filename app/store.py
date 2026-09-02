@@ -16,6 +16,7 @@ import unicodedata
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from .naming import generate_slug, is_reserved
 from .supabase import SupabaseClient, SupabaseError
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$")
@@ -53,11 +54,20 @@ def slugify(name: str, *, fallback: str = "site") -> str:
     slug = slug[:48].strip("-")
     if len(slug) < 3:
         slug = (slug + "-" + fallback).strip("-")[:48]
+    if is_reserved(slug):
+        # A repository called `docs` or `app` is ordinary; taking that slug is
+        # not. Give it a generated one instead of refusing the import.
+        return generate_slug()
     return slug
 
 
 def is_valid_slug(slug: str) -> bool:
-    return bool(SLUG_RE.match(slug))
+    """Shape, and then the reserved list (AUTODEPLOY.md section 2).
+
+    Reserved words are rejected rather than silently rewritten: someone asking
+    for `admin` should be told no, not handed `admin-3f2a` and left wondering.
+    """
+    return bool(SLUG_RE.match(slug)) and not is_reserved(slug)
 
 
 class Store:

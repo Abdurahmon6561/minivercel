@@ -75,6 +75,20 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
     void load();
   }, [load]);
 
+  // AUTODEPLOY.md section 8: a push-triggered or import-triggered deploy runs in
+  // a background task, so nothing in this tab knows when it finishes. Poll while
+  // anything is pending and stop as soon as it settles - watching pending turn
+  // to ready is the whole point of auto-deploy being visible.
+  const hasPending = project?.deployments.some(
+    (deployment) => deployment.status === "pending",
+  );
+
+  useEffect(() => {
+    if (!hasPending) return;
+    const timer = setInterval(() => void load(), 2000);
+    return () => clearInterval(timer);
+  }, [hasPending, load]);
+
   async function redeploy(file: File) {
     if (!project) return;
     setError(null);

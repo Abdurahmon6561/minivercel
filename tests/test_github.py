@@ -567,6 +567,33 @@ async def test_a_deploy_token_upload_uses_the_zip_root_not_dist(
     assert supabase.objects[deployment_id + "/index.html"][0] == b"root"
 
 
+async def test_deploy_from_repo_adopts_a_pre_created_deployment(client, supabase, github):
+    """The webhook creates the row before backgrounding the work, so the task
+    must finish *that* row rather than opening a second one."""
+    from app.config import get_settings as settings_of
+    from app.deps import get_store
+    from app.gitops import deploy_from_repo
+
+    slug = await imported(client, supabase, github)
+    supabase.tables["deployments"].clear()
+
+    store = get_store()
+    project = next(p for p in supabase.tables["projects"] if p["slug"] == slug)
+    pre = await store.create_deployment(project["id"], "c" * 40)
+
+    returned = await deploy_from_repo(
+        store,
+        settings_of(),
+        project=project,
+        commit_sha="c" * 40,
+        deployment_id=pre["id"],
+    )
+
+    assert returned == pre["id"]
+    assert len(supabase.tables["deployments"]) == 1
+    assert supabase.tables["deployments"][0]["status"] == "ready"
+
+
 # -- the workflow file --------------------------------------------------------
 
 

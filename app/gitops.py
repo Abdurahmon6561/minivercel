@@ -27,6 +27,7 @@ from .crypto import EncryptionUnavailable, decrypt
 from .deployer import QuotaExceeded, cleanup, mark_failed, publish
 from .github import GitHubClient, GitHubError, split_repo
 from .store import Store
+from .urls import api_base_url
 from .zipvalidate import ZipRejected
 
 log = logging.getLogger("minivercel.gitops")
@@ -78,10 +79,6 @@ async def client_for_user(store: Store, settings: Settings, user_id: str) -> Git
     return GitHubClient(token)
 
 
-def webhook_url(settings: Settings) -> str:
-    return settings.public_base_url + "/api/webhooks/github"
-
-
 def new_webhook_secret() -> str:
     return secrets.token_hex(32)
 
@@ -95,8 +92,14 @@ async def deploy_from_repo(
     *,
     project: dict,
     commit_sha: str | None = None,
+    deployment_id: str | None = None,
 ) -> str | None:
     """Download the repo at its branch and publish it. Returns a deployment id.
+
+    `deployment_id` lets the caller create the row *before* handing this to a
+    BackgroundTask, so it can return the id in the 202 and the dashboard has
+    something to poll (AUTODEPLOY.md section 8). When omitted the row is created
+    here.
 
     Safe to run as a BackgroundTask: it never raises. Every failure is written
     to the deployment row, where the dashboard shows it.
@@ -111,14 +114,13 @@ async def deploy_from_repo(
     tmp_dir = tempfile.gettempdir()
     zip_path = os.path.join(tmp_dir, "mv-repo-%s.zip" % uuid.uuid4().hex)
     extract_root = ""
-    deployment_id: str | None = None
 
     try:
         owner, name = split_repo(repo_full_name)
         branch = project.get("repo_branch") or "main"
 
-        deployment = await store.create_deployment(project["id"], commit_sha)
-        deployment_id = deployment["id"]
+        if deployment_id is None:
+            deployment_id = (await store.create_deployment(project["id"], commit_sha))["id"]
         extract_root = os.path.join(tmp_dir, "mv-%s" % deployment_id)
 
         client = await client_for_user(store, settings, project["owner_id"])
@@ -275,7 +277,7 @@ async def enable_builds(store: Store, settings: Settings, project: dict) -> dict
                 branch=branch,
                 build_command=build_command,
                 output_dir=output_dir,
-                api_base_url=settings.public_base_url,
+                api_base_url=api_base_url(settings),
                 slug=project["slug"],
             ),
             "Add MiniVercel deploy workflow",
