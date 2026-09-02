@@ -1,0 +1,4 @@
+:root { color-scheme: dark; }
+body { background: #0b0b0f; color: #e6e6ea; font: 16px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; margin: 8vh auto; max-width: 44rem; padding: 0 1.5rem; }
+a { color: #7dd3fc; }
+h1 { font-size: 2rem; letter-spacing: -0.02em; }

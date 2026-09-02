@@ -1,0 +1,37 @@
+# Render blueprint. `New > Blueprint` in the dashboard, point it at this repo.
+#
+# One free web service and nothing else: the free tier grants 750 instance hours
+# per month across the whole workspace, always-on burns ~720, and a second free
+# service would push the workspace over and suspend both (SPEC.md).
+services:
+  - type: web
+    name: minivercel
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false          # service_role. Set it in the dashboard, never here.
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: SUPABASE_BUCKET
+        value: sites
+      - key: PUBLIC_BASE_URL
+        sync: false          # https://<your-service>.onrender.com
+      - key: CORS_ORIGINS
+        sync: false          # https://<your-dashboard>.vercel.app
+      - key: MAX_DEPLOYMENT_BYTES
+        value: "52428800"
+      - key: MAX_FILES_PER_DEPLOYMENT
+        value: "500"
+      - key: MAX_USER_BYTES
+        value: "104857600"
+      - key: SERVE_RATE_LIMIT_PER_MIN
+        value: "60"
+      - key: UPLOAD_RATE_LIMIT_PER_HOUR
+        value: "20"

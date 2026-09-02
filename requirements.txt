@@ -1,0 +1,5 @@
+fastapi==0.140.0
+uvicorn[standard]==0.38.0
+httpx==0.28.1
+python-multipart==0.0.32
+PyJWT[crypto]==2.13.0
