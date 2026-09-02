@@ -139,6 +139,42 @@ async def _upload_files(
     return total, paths
 
 
+async def _verify_served_content_type(store: Store, deployment_id: str) -> None:
+    """Read back index.html and check Storage kept the type we sent.
+
+    One HEAD per deploy. It exists because the failure it catches is invisible
+    from this side: the upload returns 200 and the logs look perfect while the
+    browser renders the page as plain text. Never fatal - a deployment whose
+    bytes are all in place is a good deployment, and a read-back that fails
+    tells us about the read-back, not the deploy.
+    """
+    expected = content_type_for("index.html")
+    try:
+        served = await store.db.stored_content_type("%s/index.html" % deployment_id)
+    except Exception as exc:  # pragma: no cover - diagnostics must never break a deploy
+        log.warning("content-type read-back failed for %s: %s", deployment_id, exc)
+        return
+
+    if served is None:
+        log.warning(
+            "content-type read-back: %s/index.html could not be fetched from Storage",
+            deployment_id,
+        )
+    elif served.split(";")[0].strip().lower() != expected.split(";")[0].strip().lower():
+        log.error(
+            "CONTENT-TYPE MISMATCH on %s/index.html: sent %r, Storage serves %r. "
+            "The bytes uploaded fine; Storage did not keep the type. Check the "
+            "bucket's allowed_mime_types, and whether a CDN response is cached.",
+            deployment_id,
+            expected,
+            served,
+        )
+    else:
+        log.info(
+            "content-type read-back ok: %s/index.html serves %s", deployment_id, served
+        )
+
+
 def _enforce_quota(used: int, incoming: int, settings: Settings) -> None:
     """NON-NEGOTIABLE #5: the free tier will not warn you before it breaks."""
     if used + incoming <= settings.max_user_bytes:
@@ -244,6 +280,7 @@ async def create_deployment(
         extract(zip_path, entries, extract_root, max_bytes=settings.max_deployment_bytes)
         uploaded_any = True
         size_bytes, paths = await _upload_files(store, deployment_id, extract_root, entries)
+        await _verify_served_content_type(store, deployment_id)
 
         # --- 6. ready ------------------------------------------------------
         await store.mark_deployment_ready(

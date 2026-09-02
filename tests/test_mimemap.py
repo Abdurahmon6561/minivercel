@@ -203,3 +203,62 @@ async def test_every_stored_object_has_a_whitelisted_type(client, supabase):
     )
     for key, content_type in supabase.upload_calls:
         assert content_type == content_type_for(key)
+
+
+# -- the read-back check ------------------------------------------------------
+
+
+async def test_deploy_logs_a_mismatch_when_storage_changes_the_type(
+    client, supabase, caplog, monkeypatch
+):
+    """The failure this catches is silent from the upload side."""
+
+    async def lying_readback(key):
+        return "text/plain;charset=UTF-8"
+
+    monkeypatch.setattr(supabase, "stored_content_type", lying_readback, raising=False)
+
+    with caplog.at_level("ERROR"):
+        response = await deploy(client, make_zip({"index.html": "<h1>hi</h1>"}))
+
+    assert response.status_code == 201, "a wrong type must not fail the deploy"
+    assert any("CONTENT-TYPE MISMATCH" in record.getMessage() for record in caplog.records)
+
+
+async def test_deploy_is_quiet_when_the_type_survives(client, supabase, caplog, monkeypatch):
+    async def honest_readback(key):
+        return "text/html; charset=utf-8"
+
+    monkeypatch.setattr(supabase, "stored_content_type", honest_readback, raising=False)
+
+    with caplog.at_level("ERROR"):
+        response = await deploy(client, make_zip({"index.html": "<h1>hi</h1>"}))
+
+    assert response.status_code == 201
+    assert not any("MISMATCH" in record.getMessage() for record in caplog.records)
+
+
+async def test_read_back_failure_never_fails_the_deploy(client, supabase, monkeypatch):
+    async def broken(key):
+        raise RuntimeError("storage unreachable")
+
+    monkeypatch.setattr(supabase, "stored_content_type", broken, raising=False)
+    response = await deploy(client, make_zip({"index.html": "<h1>hi</h1>"}))
+    assert response.status_code == 201
+
+
+async def test_upload_logs_the_type_and_status_for_each_file(capture_server, caplog):
+    """Requested: Render logs must show what was sent, per file."""
+    requests, settings = capture_server
+    supabase_client = SupabaseClient(settings)
+    with caplog.at_level("INFO"):
+        try:
+            await supabase_client.upload("d1/index.html", b"x", content_type_for("index.html"))
+            await supabase_client.upload("d1/odd.weird", b"x", content_type_for("odd.weird"))
+        finally:
+            await supabase_client.aclose()
+
+    logged = "\n".join(record.getMessage() for record in caplog.records)
+    assert "d1/index.html content-type=text/html; charset=utf-8" in logged
+    assert "d1/odd.weird content-type=application/octet-stream" in logged
+    assert "-> 200" in logged

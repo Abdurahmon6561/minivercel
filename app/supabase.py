@@ -129,7 +129,18 @@ class SupabaseClient:
             _encode_key(key),
         )
 
-    async def upload(self, key: str, data: bytes, content_type: str) -> None:
+    async def upload(self, key: str, data: bytes, content_type: str) -> int:
+        """Write one object as a raw binary body.
+
+        Deliberately NOT multipart. With `files=`, httpx builds a
+        multipart/form-data envelope and a top-level Content-Type header is
+        ignored - Storage reads the per-part type instead, and an unset per-part
+        type is how objects end up stored as text/plain. Sending the bytes as
+        the body means the request's own Content-Type is the object's type, with
+        nothing in between to lose it.
+
+        Returns the response status so callers can log what actually happened.
+        """
         response = await self._client.post(
             "/storage/v1/object/%s/%s" % (self.bucket, _encode_key(key)),
             content=data,
@@ -139,7 +150,34 @@ class SupabaseClient:
                 "cache-control": "public, max-age=31536000, immutable",
             },
         )
+        # One line per file, at INFO, so Render's log shows what was sent for
+        # every object rather than only what failed.
+        log.info(
+            "upload %s content-type=%s bytes=%d -> %s",
+            key,
+            content_type,
+            len(data),
+            response.status_code,
+        )
         self._check(response, "upload object")
+        return response.status_code
+
+    async def stored_content_type(self, key: str) -> str | None:
+        """What Supabase actually serves for this key, via the public URL.
+
+        Answers the question logs cannot: whether the type we sent survived.
+        Returns None if the object cannot be reached.
+        """
+        try:
+            response = await self._client.head(
+                "/storage/v1/object/public/%s/%s" % (self.bucket, _encode_key(key))
+            )
+        except httpx.HTTPError as exc:
+            log.warning("could not read back %s: %s", key, exc)
+            return None
+        if response.status_code != 200:
+            return None
+        return response.headers.get("content-type")
 
     async def remove_prefix(self, prefix: str) -> None:
         """Delete every object under `prefix/`.
