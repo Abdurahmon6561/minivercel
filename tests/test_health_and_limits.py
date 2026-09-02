@@ -119,3 +119,16 @@ def test_ttl_cache_zero_ttl_never_expires():
     cache.set("k", "v")
     time.sleep(0.1)
     assert cache.get("k") == "v"
+
+
+async def test_health_and_root_answer_head(client):
+    """Uptime monitors and platform health checks may send HEAD, not GET."""
+    for path in ("/health", "/"):
+        response = await client.head(path)
+        assert response.status_code == 200, path
+
+
+async def test_head_probe_still_reports_through_get(client):
+    """HEAD carries no body, so the JSON is only observable on GET."""
+    assert (await client.head("/health")).status_code == 200
+    assert (await client.get("/health")).json()["status"] == "ok"

@@ -49,12 +49,15 @@ async def _probe_database() -> str:
     return _last_result
 
 
-@router.get("/health")
+# GET and HEAD both, because uptime monitors and platform health checks are
+# split on which they send: HetrixTools and Render can be configured either way,
+# and a 405 to a HEAD probe reads as "down" just as loudly as a timeout.
+@router.api_route("/health", methods=["GET", "HEAD"])
 async def health():
     return {"status": "ok", "database": await _probe_database()}
 
 
-@router.get("/")
+@router.api_route("/", methods=["GET", "HEAD"])
 async def root():
     return {
         "service": "minivercel",
