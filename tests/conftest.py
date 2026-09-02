@@ -14,6 +14,9 @@ os.environ.setdefault("SUPABASE_BUCKET", "sites")
 os.environ.setdefault("PUBLIC_BASE_URL", "https://minivercel.test")
 os.environ.setdefault("UPLOAD_RATE_LIMIT_PER_HOUR", "1000")
 os.environ.setdefault("SERVE_RATE_LIMIT_PER_MIN", "1000")
+os.environ.setdefault(
+    "GITHUB_TOKEN_KEY", "aTHZLdgs0oUdF4kXbTb2cCiZ7pdOoGWMU9Hs3sOhSbo="
+)
 
 import httpx  # noqa: E402
 import jwt  # noqa: E402

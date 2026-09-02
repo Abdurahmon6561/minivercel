@@ -7,11 +7,13 @@ Uploads are inert files that get validated, stored, and redirected to. That
 restriction is the entire security model — see [SPEC.md](SPEC.md)
 "Non-negotiables" before changing anything in [app/](app/).
 
-**Status: Phase 1 complete and tested; not yet deployed.** Deploying needs a
-Supabase project and a Render account, which only you can create. The runbook
-below is the remaining work, and it is about fifteen minutes. Phases 2–5 are
-gated on it by the spec ("Do NOT start Phase 2 until Phase 1 is deployed and
-working"), so nothing past Phase 1 has been started.
+**Status: Phases 1–4 complete. Phase 1 and 2 deployed at
+<https://minivercel.onrender.com>.** Phases 3 and 4 add GitHub import,
+auto-deploy on push, and builds that run on GitHub Actions rather than here.
+Phase 5 (garbage collection, rollback, build logs) has not been started.
+
+Deploying 3 and 4 needs one new migration and one new environment variable —
+see "Deploy runbook" below.
 
 ---
 
@@ -57,8 +59,16 @@ Two rules explain most of the design:
 | [app/store.py](app/store.py) | Every database call in the app. |
 | [app/supabase.py](app/supabase.py) | Thin async PostgREST + Storage client. |
 | [db/](db/) | SQL to run in the Supabase editor, in order. |
+| [app/deployer.py](app/deployer.py) | The one deployment pipeline. Every source of a zip goes through it. |
+| [app/gitops.py](app/gitops.py) | Import, push deploys, and Actions build enablement. |
+| [app/github.py](app/github.py) | GitHub REST: repos, zipballs, webhooks, workflow files, secrets. |
+| [app/deploytoken.py](app/deploytoken.py) | Per-project deploy tokens. Stored as sha256, never in the clear. |
+| [app/routers/webhooks.py](app/routers/webhooks.py) | `POST /api/webhooks/github`: verify, then 202 and deploy in the background. |
+| [app/routers/me.py](app/routers/me.py) | `/api/me`: identity, quota, and the encrypted GitHub token. |
+| [app/crypto.py](app/crypto.py) | Fernet wrapper for the one secret we must store and read back. |
+| [web/](web/) | Phase 2 dashboard: React + Vite + Tailwind, deployed on Vercel. |
 | [scripts/smoke.sh](scripts/smoke.sh) | The Phase 1 curl deliverable, end to end. |
-| [tests/](tests/) | 195 tests, no network required. |
+| [tests/](tests/) | 298 tests, no network required. |
 
 ---
 
@@ -73,6 +83,10 @@ Create a project (free plan), then in the SQL editor run, in order:
    in the spec; the file explains why it earns its place. The app works without
    it, just with more storage round-trips per request.
 3. [db/003_storage_bucket.sql](db/003_storage_bucket.sql) — the public `sites` bucket.
+4. [db/004_github_tokens.sql](db/004_github_tokens.sql) — Phase 2: the encrypted
+   GitHub provider token. RLS on, no policy, service_role only.
+5. [db/005_github_integration.sql](db/005_github_integration.sql) — Phases 3 and
+   4: repo linkage, webhook secret, the two switches, and the deploy-token hash.
 
 Then collect, from Project Settings → API:
 
@@ -93,8 +107,23 @@ SUPABASE_URL          https://<ref>.supabase.co
 SUPABASE_SERVICE_KEY  <service_role key>
 SUPABASE_JWT_SECRET   <JWT secret, or blank for JWKS>
 PUBLIC_BASE_URL       https://<service>.onrender.com
-CORS_ORIGINS          https://<dashboard>.vercel.app     (Phase 2; blank for now)
+CORS_ORIGINS          https://<dashboard>.vercel.app
+GITHUB_TOKEN_KEY      <Fernet key>
 ```
+
+`PUBLIC_BASE_URL` is load-bearing from Phase 3 on: it is the URL registered as
+the GitHub webhook and baked into the committed workflow file. Changing it means
+re-importing projects and re-enabling builds.
+
+`GITHUB_TOKEN_KEY` encrypts both the GitHub provider token and each project's
+webhook secret. Generate it with:
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Rotating it invalidates every stored token and webhook secret: users reconnect
+GitHub, and projects must be re-imported.
 
 Only one free service fits in a workspace: the free tier grants 750 instance
 hours a month across the whole workspace and always-on burns about 720.
@@ -141,7 +170,7 @@ uvicorn app.main:app --reload
 configured, so you can tell "misconfigured" apart from "down".
 
 ```bash
-python -m pytest              # 195 tests, no network, no Supabase project
+python -m pytest              # 298 tests, no network, no Supabase project
 ```
 
 ---
@@ -208,11 +237,48 @@ with 1 GB total it will be needed early.
 
 ---
 
+## GitHub integration (Phases 3 and 4)
+
+```
+  push to main
+       |
+       v
+  POST /api/webhooks/github
+       |
+  [ verify X-Hub-Signature-256 against this project's secret ]
+       |
+       +-- auto_deploy_enabled = false --> 202 ignored, recorded, nothing deploys
+       +-- builds_enabled = true --------> 202 ignored; Actions will POST instead
+       |
+       v
+  202 accepted (within 10s), deploy runs in a BackgroundTask
+       |
+  download zipball -> strip owner-repo-sha/ -> find dist|build|public|_site
+       |
+       v
+  the Phase 1 validation pipeline, unchanged
+```
+
+**Two independent switches per project**, both on `/p/{slug}`:
+
+| Switch | Off means |
+| --- | --- |
+| `auto_deploy_enabled` | Pushes are received and recorded, nothing deploys. The webhook stays registered — deleting it would need the OAuth token to re-create later, and that can fail silently. |
+| `builds_enabled` | The repository is deployed as-is. On, GitHub Actions builds it and POSTs the output; the webhook then defers, or every push would produce two deployments, the second one wrong. |
+
+**Builds never run here.** Enabling them commits
+`.github/workflows/minivercel.yml` to the user's repo and stores a per-project
+deploy token as the `MINIVERCEL_TOKEN` Actions secret (libsodium sealed box). We
+keep `sha256(token)` and nothing else. `npm install` runs on GitHub's runner,
+paid for by GitHub, with no access to our database — Render Free is 0.1 CPU and
+512 MB, and the Phase 1 security model is unchanged because all we ever receive
+is a zip of static output.
+
+A failed deploy never changes `live_deployment_id`: a broken push leaves the
+previous version serving.
+
 ## Not built yet
 
-Phase 2 (dashboard), 3 (GitHub import), 4 (Actions-based builds) and 5 (GC,
-rollback, build logs) are untouched, per the spec's gate on Phase 1 being
-deployed first. Two pieces of Phase 1 already lean their way: the redundant-root
-stripping in `zipvalidate.strip_redundant_root` is what Phase 3 needs for
-GitHub's `owner-repo-sha1/` wrapper, and `deployments.commit_sha` is populated
-from the `X-Commit-Sha` header that the Phase 4 workflow sends.
+Phase 5 — garbage collection of old deployments, rollback, build logs, custom
+domains — is untouched. GC matters soonest: with 1 GB of storage and no
+collection, deployments accumulate until the 100 MB per-user quota stops them.

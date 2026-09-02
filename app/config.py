@@ -32,6 +32,7 @@ class Settings:
     supabase_jwt_secret: str
     supabase_jwt_audience: str
     public_base_url: str
+    github_token_key: str
 
     max_deployment_bytes: int
     max_files_per_deployment: int
@@ -70,6 +71,7 @@ def get_settings() -> Settings:
         supabase_jwt_secret=os.environ.get("SUPABASE_JWT_SECRET", ""),
         supabase_jwt_audience=os.environ.get("SUPABASE_JWT_AUDIENCE", "authenticated"),
         public_base_url=os.environ.get("PUBLIC_BASE_URL", "http://localhost:8000").rstrip("/"),
+        github_token_key=os.environ.get("GITHUB_TOKEN_KEY", ""),
         max_deployment_bytes=_int("MAX_DEPLOYMENT_BYTES", 50 * MB),
         max_files_per_deployment=_int("MAX_FILES_PER_DEPLOYMENT", 500),
         max_user_bytes=_int("MAX_USER_BYTES", 100 * MB),

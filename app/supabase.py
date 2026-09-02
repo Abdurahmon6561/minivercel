@@ -100,6 +100,23 @@ class SupabaseClient:
             raise SupabaseError("insert %s returned no row" % table)
         return rows[0]
 
+    async def upsert(
+        self, table: str, row: dict[str, Any], *, on_conflict: str
+    ) -> dict:
+        """Insert, or replace the row that collides on `on_conflict`."""
+        response = await self._client.post(
+            "/rest/v1/" + table,
+            params={"on_conflict": on_conflict},
+            json=row,
+            headers={
+                "Prefer": "return=representation,resolution=merge-duplicates",
+                "Content-Type": "application/json",
+            },
+        )
+        self._check(response, "upsert " + table)
+        rows = response.json()
+        return rows[0] if rows else {}
+
     async def update(
         self, table: str, params: dict[str, Any], patch: dict[str, Any]
     ) -> list[dict]:

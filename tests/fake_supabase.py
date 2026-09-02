@@ -8,13 +8,28 @@ query depends on. Tests run with no network and no Supabase project.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.supabase import SupabaseError
 
 
+_last_now = [datetime.now(timezone.utc)]
+
+
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    """Strictly increasing timestamps.
+
+    Real Postgres gives two rows inserted by two requests distinct `now()`
+    values. Windows' clock has ~15 ms resolution, so a fake using
+    `datetime.now()` hands consecutive inserts the *same* timestamp, and any
+    "newest row" query then depends on sort stability rather than on time.
+    That models the database badly and makes ordering tests flaky.
+    """
+    current = datetime.now(timezone.utc)
+    if current <= _last_now[0]:
+        current = _last_now[0] + timedelta(microseconds=1)
+    _last_now[0] = current
+    return current.isoformat()
 
 
 class _FakeStream:
@@ -42,7 +57,11 @@ class FakeSupabase:
     def __init__(self, *, supports_manifest: bool = True) -> None:
         self.bucket = "sites"
         self.supports_manifest = supports_manifest
-        self.tables: dict[str, list[dict]] = {"projects": [], "deployments": []}
+        self.tables: dict[str, list[dict]] = {
+            "projects": [],
+            "deployments": [],
+            "github_tokens": [],
+        }
         self.objects: dict[str, tuple[bytes, str]] = {}
         self.upload_calls: list[tuple[str, str]] = []
         self.streams: list[_FakeStream] = []
@@ -60,6 +79,11 @@ class FakeSupabase:
                 if item.strip()
             }
             return value is not None and str(value) in members
+
+        if op == "lt":
+            return value is not None and str(value) < str(expected)
+        if op == "gt":
+            return value is not None and str(value) > str(expected)
 
         expected_value = None if expected == "null" else expected
         if op == "eq":
@@ -96,8 +120,13 @@ class FakeSupabase:
 
         order = params.get("order")
         if order:
-            column, _, direction = order.partition(".")
-            rows.sort(key=lambda row: row.get(column) or "", reverse=direction == "desc")
+            # PostgREST allows "a.desc,b.desc"; apply least-significant first.
+            for clause in reversed([c for c in order.split(",") if c]):
+                column, _, direction = clause.partition(".")
+                rows.sort(
+                    key=lambda row, col=column: row.get(col) or "",
+                    reverse=direction == "desc",
+                )
 
         limit = params.get("limit")
         if limit:
@@ -114,6 +143,22 @@ class FakeSupabase:
             if any(p["slug"] == record["slug"] for p in self.tables["projects"]):
                 raise SupabaseError("duplicate key value violates unique constraint", 409)
             record.setdefault("live_deployment_id", None)
+        if table == "github_tokens":
+            record.pop("id", None)
+        if table == "projects":
+            record.setdefault("repo_full_name", None)
+            record.setdefault("repo_branch", None)
+            record.setdefault("webhook_id", None)
+            record.setdefault("webhook_secret", None)
+            record.setdefault("auto_deploy_enabled", True)
+            record.setdefault("builds_enabled", False)
+            record.setdefault("build_command", "npm run build")
+            record.setdefault("output_dir", "dist")
+            record.setdefault("deploy_token_sha256", None)
+            record.setdefault("last_webhook_at", None)
+            record.setdefault("last_webhook_status", None)
+            record.setdefault("last_webhook_detail", None)
+            record.setdefault("last_webhook_sha", None)
         if table == "deployments":
             record.setdefault("status", "pending")
             record.setdefault("size_bytes", 0)
@@ -124,6 +169,13 @@ class FakeSupabase:
 
         self.tables[table].append(record)
         return dict(record)
+
+    async def upsert(self, table: str, row: dict, *, on_conflict: str) -> dict:
+        for existing in self.tables[table]:
+            if existing.get(on_conflict) == row.get(on_conflict):
+                existing.update(row)
+                return dict(existing)
+        return await self.insert(table, row)
 
     async def update(self, table: str, params: dict, patch: dict) -> list[dict]:
         if not self.supports_manifest and "file_paths" in patch:

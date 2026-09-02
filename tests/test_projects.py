@@ -135,3 +135,62 @@ def test_slugify():
     assert slugify("Ünïcödé Nâmes") == "unicode-names"
     assert slugify("a") == "a-site"
     assert len(slugify("x" * 200)) <= 48
+
+
+# -- the dashboard's project list ---------------------------------------------
+
+
+async def test_list_includes_last_deployment_for_the_status_dot(client):
+    await deploy(client, make_zip(SITE), slug="listed")
+    rows = (await client.get("/api/projects", headers=auth_headers())).json()
+
+    row = next(r for r in rows if r["slug"] == "listed")
+    assert row["last_deployment"]["status"] == "ready"
+    assert row["last_deployment"]["is_live"] is True
+    assert row["last_deployment"]["created_at"]
+    assert row["url"] == "https://minivercel.test/s/listed/"
+
+
+async def test_list_reports_none_for_a_project_never_deployed(client):
+    await client.post(
+        "/api/projects", headers=auth_headers(), json={"name": "Empty", "slug": "empty"}
+    )
+    rows = (await client.get("/api/projects", headers=auth_headers())).json()
+    assert rows[0]["last_deployment"] is None
+
+
+async def test_list_shows_the_newest_deployment_not_the_first(client, supabase):
+    await deploy(client, make_zip(SITE), slug="newest")
+    second = (await deploy(client, make_zip(SITE), slug="newest")).json()
+
+    rows = (await client.get("/api/projects", headers=auth_headers())).json()
+    assert rows[0]["last_deployment"]["id"] == second["id"]
+
+
+async def test_list_surfaces_a_failed_deployment(client):
+    await deploy(client, make_zip(SITE), slug="broken")
+    await deploy(client, make_zip({"index.html": "hi", "../evil": "x"}), slug="broken")
+
+    rows = (await client.get("/api/projects", headers=auth_headers())).json()
+    row = next(r for r in rows if r["slug"] == "broken")
+    assert row["last_deployment"]["status"] == "failed"
+    assert row["last_deployment"]["is_live"] is False, "a failed deploy is not live"
+    assert row["last_deployment"]["error"]
+
+
+async def test_list_does_not_scale_queries_with_project_count(client, supabase):
+    """One query for projects, one batch for deployments - not N+1."""
+    for index in range(6):
+        await deploy(client, make_zip(SITE), slug="proj-%d" % index)
+
+    calls = []
+    real = supabase.select
+
+    async def counting(table, params):
+        calls.append(table)
+        return await real(table, params)
+
+    supabase.select = counting
+    rows = (await client.get("/api/projects", headers=auth_headers())).json()
+    assert len(rows) == 6
+    assert calls == ["projects", "deployments"]

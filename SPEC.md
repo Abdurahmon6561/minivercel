@@ -280,10 +280,10 @@ receive a zip of static output. Our security model from Phase 1 is unchanged.
 
 ## Order of work
 
-- [ ] Phase 1 backend, tested with curl
-- [ ] Deploy to HF Space, confirm `/health` works
-- [ ] HetrixTools monitor on `/health`
-- [ ] Phase 2 dashboard on Vercel
-- [ ] Phase 3 GitHub import
-- [ ] Phase 4 Actions-based builds
+- [x] Phase 1 backend, tested with curl
+- [x] Deploy to Render, confirm `/health` works
+- [x] HetrixTools monitor on `/health`
+- [x] Phase 2 dashboard on Vercel
+- [x] Phase 3 GitHub import + push auto-deploy
+- [x] Phase 4 Actions-based builds
 - [ ] Phase 5 GC and rollback

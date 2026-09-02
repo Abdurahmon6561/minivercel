@@ -3,3 +3,5 @@ uvicorn[standard]==0.38.0
 httpx==0.28.1
 python-multipart==0.0.32
 PyJWT[crypto]==2.13.0
+cryptography==46.0.4
+PyNaCl==1.6.2

@@ -209,7 +209,14 @@ async def test_tmp_is_always_cleaned_up(client):
     await deploy(client, make_zip({"index.html": "hi", "../evil": "x"}))
     await deploy(client, b"not a zip")
     after = set(glob.glob(os.path.join(tempfile.gettempdir(), "mv-*")))
-    assert after == before
+
+    # `after - before`, not `after == before`. The claim under test is
+    # NON-NEGOTIABLE #6 - we leave nothing behind - and that is exactly the
+    # difference. Requiring equality also asserts that nobody *else* touched the
+    # shared system temp directory, which is not ours to promise: a concurrent
+    # test run or an OS cleanup removing an unrelated `mv-*` file would fail a
+    # run in which our own cleanup was perfect.
+    assert after - before == set(), "a deployment left files in /tmp"
 
 
 # -- reading deployments ----------------------------------------------------

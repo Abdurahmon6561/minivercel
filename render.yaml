@@ -25,6 +25,8 @@ services:
         sync: false          # https://<your-service>.onrender.com
       - key: CORS_ORIGINS
         sync: false          # https://<your-dashboard>.vercel.app
+      - key: GITHUB_TOKEN_KEY
+        generateValue: true  # Fernet key for GitHub provider tokens
       - key: MAX_DEPLOYMENT_BYTES
         value: "52428800"
       - key: MAX_FILES_PER_DEPLOYMENT

@@ -237,6 +237,41 @@ def strip_redundant_root(entries: list[ZipEntry]) -> list[ZipEntry]:
     return stripped
 
 
+#: Where a static site generator leaves its output, in the order SPEC.md
+#: Phase 3 step 4 specifies. First one containing an index.html wins.
+BUILD_OUTPUT_DIRS = ("dist", "build", "public", "_site")
+
+
+def select_site_root(entries: list[ZipEntry]) -> tuple[list[ZipEntry], str | None]:
+    """Find the directory that is actually the site, and re-root to it.
+
+    A repository is not a website. After GitHub's `owner-repo-sha/` wrapper is
+    stripped, `index.html` is usually not at the top: it is under `dist/` or
+    `build/`, next to `src/`, `package.json` and everything else.
+
+    Returns (entries, chosen subdirectory or None). Entries outside the chosen
+    directory are dropped - deploying a repo's `src/` and `node_modules/`
+    alongside its built output would burn the 500-file budget on files no
+    browser will ever ask for.
+    """
+    if any(entry.path == "index.html" for entry in entries):
+        return entries, None
+
+    for candidate in BUILD_OUTPUT_DIRS:
+        prefix = candidate + "/"
+        if not any(entry.path == prefix + "index.html" for entry in entries):
+            continue
+        rerooted = [
+            ZipEntry(name=entry.name, path=entry.path[len(prefix) :], size=entry.size)
+            for entry in entries
+            if entry.path.startswith(prefix) and len(entry.path) > len(prefix)
+        ]
+        if rerooted:
+            return rerooted, candidate
+
+    return entries, None
+
+
 def extract(
     zip_path: str,
     entries: list[ZipEntry],

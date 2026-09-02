@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 
 from . import deps
 from .config import get_settings
-from .routers import deployments, health, projects, serve
+from .routers import deployments, github, health, me, projects, serve, webhooks
 from .supabase import SupabaseError
 
 logging.basicConfig(
@@ -44,6 +44,18 @@ async def lifespan(app: FastAPI):
             "SUPABASE_URL / SUPABASE_SERVICE_KEY are not set. "
             "/health will answer but nothing else will work."
         )
+        # A deployment left `pending` is a worker that died mid-deploy, not a
+        # slow one: Render restarts the dyno on deploy, spin-down and OOM. Left
+        # alone the row shows an amber dot for ever. Nothing is retried - those
+        # deployments never went live, so the previous one is still serving.
+        try:
+            reaped = await deps.get_store().reap_stuck_pending(10)
+            if reaped:
+                log.warning("marked %d stuck pending deployment(s) failed", reaped)
+        except Exception as exc:
+            # Never let startup housekeeping stop the service from booting.
+            log.warning("could not reap stuck deployments: %s", exc)
+
     try:
         yield
     finally:
@@ -102,7 +114,15 @@ async def upstream_unreachable(request: Request, exc: httpx.HTTPError) -> JSONRe
     )
 
 
+# Order matters. `github.router` owns the literal paths `/api/projects/import`
+# and `/api/projects/{slug}/builds`; `projects.router` owns `/api/projects/{slug}`.
+# FastAPI matches in registration order, so the literal routes go first -
+# otherwise adding a POST /{slug} to projects later would silently swallow
+# imports and the failure would look like "Unknown project".
 app.include_router(health.router)
+app.include_router(me.router)
+app.include_router(github.router)
 app.include_router(projects.router)
 app.include_router(deployments.router)
+app.include_router(webhooks.router)
 app.include_router(serve.router)
