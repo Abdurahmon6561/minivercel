@@ -36,6 +36,7 @@ class Settings:
     max_deployment_bytes: int
     max_files_per_deployment: int
     max_user_bytes: int
+    max_proxy_bytes: int
     serve_rate_limit_per_min: int
     upload_rate_limit_per_hour: int
 
@@ -72,6 +73,7 @@ def get_settings() -> Settings:
         max_deployment_bytes=_int("MAX_DEPLOYMENT_BYTES", 50 * MB),
         max_files_per_deployment=_int("MAX_FILES_PER_DEPLOYMENT", 500),
         max_user_bytes=_int("MAX_USER_BYTES", 100 * MB),
+        max_proxy_bytes=_int("MAX_PROXY_BYTES", 5 * MB),
         serve_rate_limit_per_min=_int("SERVE_RATE_LIMIT_PER_MIN", 60),
         upload_rate_limit_per_hour=_int("UPLOAD_RATE_LIMIT_PER_HOUR", 20),
         cors_origins=_list("CORS_ORIGINS", "http://localhost:5173"),

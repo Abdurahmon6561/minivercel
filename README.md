@@ -27,16 +27,21 @@ working"), so nothing past Phase 1 has been started.
    [ stream to /tmp, abort at 50 MB ]    [ slug -> project (cached 15s) ]
    [ validate EVERY entry ]              [ resolve via file manifest ]
    [ extract, whitelist content-types ]          |
-          |                                      v
-          v                              307 -> Supabase CDN
-  Supabase Storage (public bucket)               |
-  Supabase Postgres (rows)              bytes never touch our dyno
+          |                              css/js/img/font   HTML
+          v                                     |            |
+  Supabase Storage (public bucket)              v            v
+  Supabase Postgres (rows)              307 -> Supabase   streamed
+                                          CDN directly    through us
+                                        (bytes never      (Supabase
+                                         touch us)         would send
+                                                           text/plain)
 ```
 
 Two rules explain most of the design:
 
-- **Never proxy user bytes.** Serving is a redirect to Supabase's public CDN.
-  Proxying would burn the free dyno's CPU and double the bandwidth for nothing.
+- **Never proxy user bytes, except HTML.** Serving is a redirect to Supabase's
+  public CDN. The one exception is HTML, which Supabase deliberately serves as
+  `text/plain`, so a redirect cannot render a page — see "Known limitations".
 - **Never trust the archive.** Every entry is checked *before* extraction, and
   the content-type comes from our own extension whitelist, never from the zip.
 
@@ -47,13 +52,13 @@ Two rules explain most of the design:
 | [app/zipvalidate.py](app/zipvalidate.py) | Archive inspection and safe extraction. The security core. |
 | [app/upload_stream.py](app/upload_stream.py) | Streaming multipart receiver that aborts mid-body at the cap. |
 | [app/routers/deployments.py](app/routers/deployments.py) | The upload pipeline, one step per SPEC.md step. |
-| [app/routers/serve.py](app/routers/serve.py) | Path resolution, clean URLs, 307 to Supabase. |
+| [app/routers/serve.py](app/routers/serve.py) | Path resolution, clean URLs, 307 for assets, HTML proxy. |
 | [app/auth.py](app/auth.py) | Supabase JWT verification (HS256 secret or JWKS). |
 | [app/store.py](app/store.py) | Every database call in the app. |
 | [app/supabase.py](app/supabase.py) | Thin async PostgREST + Storage client. |
 | [db/](db/) | SQL to run in the Supabase editor, in order. |
 | [scripts/smoke.sh](scripts/smoke.sh) | The Phase 1 curl deliverable, end to end. |
-| [tests/](tests/) | 116 tests, no network required. |
+| [tests/](tests/) | 195 tests, no network required. |
 
 ---
 
@@ -136,7 +141,7 @@ uvicorn app.main:app --reload
 configured, so you can tell "misconfigured" apart from "down".
 
 ```bash
-python -m pytest              # 116 tests, no network, no Supabase project
+python -m pytest              # 195 tests, no network, no Supabase project
 ```
 
 ---
@@ -148,6 +153,7 @@ python -m pytest              # 116 tests, no network, no Supabase project
 | Deployment size | 50 MB | [upload_stream.py](app/upload_stream.py) while streaming, then re-checked against the archive header and again during extraction |
 | Files per deployment | 500 | [zipvalidate.py](app/zipvalidate.py), before extraction |
 | Storage per user | 100 MB | [routers/deployments.py](app/routers/deployments.py), before any object is written |
+| Proxied HTML page | 5 MB | [routers/serve.py](app/routers/serve.py), refused on Content-Length before a byte is streamed |
 | Serving requests | 60/min per IP | [ratelimit.py](app/ratelimit.py) |
 | Deployments | 20/hour per user | [ratelimit.py](app/ratelimit.py) |
 
@@ -169,20 +175,27 @@ Nothing in the upload path imports `subprocess`, calls `eval`, or shells out;
 
 ## Known limitations
 
-**User sites share this origin.** `X-Content-Type-Options: nosniff` rides on our
-redirect, and Supabase serves each object with the content-type we chose from
-the whitelist — but a user's HTML still runs as `<your-service>.onrender.com`
-in the eyes of a naive reader, and once redirected, on `<ref>.supabase.co`,
-which is shared across every site on this platform. **Do not put cookies or
-session auth on either domain.** The Phase 2 dashboard belongs on Vercel, on a
-separate origin, authenticating with a bearer token rather than a cookie — which
-is how it is specified, and why. Real isolation needs a wildcard domain and a
+**User HTML executes on this origin.** Not merely "is linked from" — HTML is
+proxied through the service (see below), so a deployed page runs as
+`<your-service>.onrender.com`. That is exactly the risk Supabase declines to
+take on `*.supabase.co`, and we have taken it deliberately because the platform
+leaves no other way to serve HTML at all. **Nothing on this domain may ever set
+a cookie or hold a session.** The Phase 2 dashboard belongs on Vercel, on a
+separate origin, authenticating with a bearer token — that separation is now
+load-bearing, not merely tidy. Real isolation needs a wildcard domain and a
 proxy layer; the spec puts that out of scope.
 
-**The 404 page returns 200.** Serving a deployment's `404.html` means
-redirecting to it, and the final response carries the storage object's status.
-Fixing this properly requires proxying the bytes, which non-negotiable #2
-forbids. The redirect carries `X-MiniVercel-Fallback: 404` so a client can tell.
+**HTML is proxied; everything else redirects.** Supabase Storage serves
+`text/html` as `text/plain` on public URLs by policy (supabase/storage#186,
+discussions #2557 and #39110) — anti-phishing for their shared origin, not a bug,
+and not defeatable from the upload side: our objects carry the correct
+`metadata->>'mimetype'` and are downgraded on the way out anyway. So HTML and
+XHTML are streamed through FastAPI with the whitelisted content-type, capped at
+`MAX_PROXY_BYTES` (5 MB). css, js, images and fonts still redirect and never
+touch the dyno. The cost is that HTML crosses the dyno twice, counting against
+Render bandwidth and Supabase egress; HTML is the small half of a static site,
+which is what makes that affordable. Do not let this exception widen — see
+SPEC.md non-negotiable #2 for the standard of evidence required.
 
 **Rate limits are per instance and per IP.** One free dyno means one process, so
 an in-memory dict is exactly right today. It is also spoofable via

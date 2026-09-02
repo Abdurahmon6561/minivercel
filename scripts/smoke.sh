@@ -70,29 +70,43 @@ echo "$RESPONSE" | head -c 400; echo
 echo "$RESPONSE" | grep -q '"status": *"ready"' && pass "deployment ready" || fail "deployment not ready"
 
 echo
-echo "serve"
-expect "GET /s/$SLUG/           " "$(code "$BASE/s/$SLUG/")" 307
-expect "GET /s/$SLUG/about      " "$(code "$BASE/s/$SLUG/about")" 307
-expect "GET /s/$SLUG/docs       " "$(code "$BASE/s/$SLUG/docs")" 307
-expect "GET /s/$SLUG/assets/app.css" "$(code "$BASE/s/$SLUG/assets/app.css")" 307
+echo "serve: HTML is proxied (Supabase would serve it as text/plain)"
+expect "GET /s/$SLUG/           " "$(code "$BASE/s/$SLUG/")" 200
+expect "GET /s/$SLUG/about      " "$(code "$BASE/s/$SLUG/about")" 200
+expect "GET /s/$SLUG/docs       " "$(code "$BASE/s/$SLUG/docs")" 200
 expect "GET /s/$SLUG (no slash) " "$(code "$BASE/s/$SLUG")" 308
 expect "GET /s/nope-not-a-site/ " "$(code "$BASE/s/nope-not-a-site/")" 404
 
-echo
-echo "redirect targets Supabase, not us"
-TARGET="$(location "$BASE/s/$SLUG/")"
-echo "  $TARGET"
-case "$TARGET" in
-  *"/storage/v1/object/public/"*) pass "redirects to Supabase Storage" ;;
-  *) fail "redirect does not point at Supabase Storage" ;;
+# The whole reason the proxy exists: this must NOT be text/plain.
+CT="$(curl -s -o /dev/null -w '%{content_type}' "$BASE/s/$SLUG/")"
+echo "  index.html content-type: $CT"
+case "$CT" in
+  text/html*) pass "HTML is served as HTML" ;;
+  *) fail "index.html came back as '$CT' - the proxy is not doing its job" ;;
 esac
-expect "follow the redirect" "$(code -L "$BASE/s/$SLUG/")" 200
+
+BODY="$(curl -s "$BASE/s/$SLUG/")"
+case "$BODY" in
+  *"It works."*) pass "proxied body is the real page" ;;
+  *) fail "proxied body did not contain the page" ;;
+esac
 
 echo
-echo "404.html fallback"
-expect "GET /s/$SLUG/nope       " "$(code "$BASE/s/$SLUG/nope")" 307
-case "$(location "$BASE/s/$SLUG/nope")" in
-  *404.html) pass "falls back to 404.html" ;;
+echo "serve: assets still redirect (never proxied)"
+expect "GET /s/$SLUG/assets/app.css" "$(code "$BASE/s/$SLUG/assets/app.css")" 307
+TARGET="$(location "$BASE/s/$SLUG/assets/app.css")"
+echo "  $TARGET"
+case "$TARGET" in
+  *"/storage/v1/object/public/"*) pass "asset redirects to Supabase Storage" ;;
+  *) fail "asset redirect does not point at Supabase Storage" ;;
+esac
+expect "follow the asset redirect" "$(code -L "$BASE/s/$SLUG/assets/app.css")" 200
+
+echo
+echo "404.html fallback, with a real 404 status"
+expect "GET /s/$SLUG/nope       " "$(code "$BASE/s/$SLUG/nope")" 404
+case "$(curl -s "$BASE/s/$SLUG/nope")" in
+  *"Served from the deployment"*) pass "404.html body was served" ;;
   *) fail "did not fall back to 404.html" ;;
 esac
 

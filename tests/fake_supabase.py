@@ -17,6 +17,27 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+class _FakeStream:
+    """Quacks like a streaming httpx.Response, and records whether it was closed.
+
+    The closed flag matters: a streaming response holds a pooled connection
+    until released, so a proxy path that forgets to close leaks one per request.
+    """
+
+    def __init__(self, status_code: int, headers: dict, data: bytes) -> None:
+        self.status_code = status_code
+        self.headers = headers
+        self.closed = False
+        self._data = data
+
+    async def aiter_bytes(self, chunk_size: int = 65536):
+        for start in range(0, len(self._data), chunk_size):
+            yield self._data[start : start + chunk_size]
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+
 class FakeSupabase:
     def __init__(self, *, supports_manifest: bool = True) -> None:
         self.bucket = "sites"
@@ -24,6 +45,7 @@ class FakeSupabase:
         self.tables: dict[str, list[dict]] = {"projects": [], "deployments": []}
         self.objects: dict[str, tuple[bytes, str]] = {}
         self.upload_calls: list[tuple[str, str]] = []
+        self.streams: list[_FakeStream] = []
 
     # -- helpers -----------------------------------------------------------
 
@@ -157,6 +179,26 @@ class FakeSupabase:
 
     async def remove_prefix(self, prefix: str) -> None:
         await self.remove(await self.list_prefix(prefix))
+
+    async def open_object_stream(self, key: str) -> "_FakeStream":
+        if key not in self.objects:
+            stream = _FakeStream(400, {}, b"")
+        else:
+            data, _ = self.objects[key]
+            stream = _FakeStream(
+                200,
+                {
+                    "content-length": str(len(data)),
+                    # Emulate the platform behaviour that forced the proxy:
+                    # Supabase serves HTML as text/plain on public URLs, whatever
+                    # mimetype the object carries. Our proxy must ignore this and
+                    # use the whitelist.
+                    "content-type": "text/plain;charset=UTF-8",
+                },
+                data,
+            )
+        self.streams.append(stream)
+        return stream
 
     async def object_exists(self, key: str) -> bool:
         return key in self.objects

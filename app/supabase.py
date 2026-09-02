@@ -249,6 +249,18 @@ class SupabaseClient:
                 offset += len(items)
         return found
 
+    async def open_object_stream(self, key: str) -> httpx.Response:
+        """Open a streaming GET on a public object.
+
+        The caller owns the response and MUST `aclose()` it - it holds a
+        connection from the pool until then. Used only by the HTML proxy path in
+        routers/serve.py; everything else is served by redirect.
+        """
+        request = self._client.build_request(
+            "GET", "/storage/v1/object/public/%s/%s" % (self.bucket, _encode_key(key))
+        )
+        return await self._client.send(request, stream=True)
+
     async def object_exists(self, key: str) -> bool:
         response = await self._client.head(
             "/storage/v1/object/public/%s/%s" % (self.bucket, _encode_key(key))

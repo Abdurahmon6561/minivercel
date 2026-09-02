@@ -2,15 +2,11 @@
 
 from __future__ import annotations
 
-import dataclasses
 import glob
 import os
 import tempfile
 
-import pytest
-
 from app.config import get_settings
-from app.main import app
 from app.supabase import SupabaseError
 
 from .conftest import OTHER_USER_ID, USER_ID, auth_headers, deploy, make_zip
@@ -22,20 +18,6 @@ SITE = {
     "assets/app.css": "body{margin:0}",
     "assets/logo.png": b"\x89PNG\r\n\x1a\n",
 }
-
-
-@pytest.fixture
-def override_settings():
-    applied = []
-
-    def apply(**changes):
-        replaced = dataclasses.replace(get_settings(), **changes)
-        app.dependency_overrides[get_settings] = lambda: replaced
-        applied.append(True)
-        return replaced
-
-    yield apply
-    app.dependency_overrides.pop(get_settings, None)
 
 
 # -- auth -------------------------------------------------------------------

@@ -122,8 +122,10 @@ working and this melting.
    - no file extension and the exact key doesn't exist -> try `{path}.html`,
      then `{path}/index.html` (this is what makes clean URLs work)
    - still nothing -> serve `404.html` if the deployment has one, else plain 404
-3. **Redirect (307) to the Supabase public storage URL.** Do not proxy the bytes
-   through FastAPI. Proxying burns the Space's 2 vCPU and doubles bandwidth.
+3. **Redirect (307) to the Supabase public storage URL** for every type except
+   HTML, which must be proxied — see non-negotiable #2 for why Supabase leaves
+   no alternative. Do not proxy anything else: it burns CPU and doubles
+   bandwidth for no benefit, because Supabase serves every other type correctly.
 4. Rate limit: 60 requests/minute per IP. In-memory dict is fine at this scale.
 
 ### Response headers
@@ -237,7 +239,37 @@ receive a zip of static output. Our security model from Phase 1 is unchanged.
 1. Never execute user-supplied code on the server. No `subprocess`, no `eval`,
    no `npm`, no image conversion libraries that shell out.
 2. Never serve user files by proxying through FastAPI. Always redirect to the
-   Supabase public URL.
+   Supabase public URL — **with one exception, for HTML only.**
+
+   Supabase Storage deliberately serves `text/html` as `text/plain` on public
+   URLs (supabase/storage#186, discussions #2557 and #39110). It is anti-phishing
+   policy for the shared `*.supabase.co` origin, not a bug, and no upload header
+   defeats it: our objects carry the correct `metadata->>'mimetype'` and are
+   downgraded on the way out regardless. A redirect therefore cannot render a
+   page, which makes redirect-only serving incompatible with the product.
+
+   So: **HTML (and XHTML) is streamed through FastAPI with the content-type from
+   our whitelist. Everything else — css, js, images, fonts — still redirects,
+   and always will.** The exception is scoped as narrowly as the platform allows
+   and is capped by `MAX_PROXY_BYTES` (5 MB default), streamed, never buffered.
+
+   Three consequences, all of which are now true and none of which may be
+   forgotten:
+
+   - User HTML executes on **our** origin instead of `supabase.co`. That is
+     precisely the risk Supabase declined to take on a shared domain, and we
+     have accepted it. Nothing on the serving domain may ever set a cookie or
+     hold a session. The Phase 2 dashboard stays on a separate origin with
+     bearer-token auth — this is now load-bearing, not merely tidy.
+   - HTML crosses the dyno twice, counting against Render bandwidth and Supabase
+     egress. HTML is the small half of a static site, which is what makes this
+     affordable; do not let the exception widen.
+   - Because we control the response, a deployment's `404.html` is now served
+     with a real 404 status instead of the 200 a redirect forced.
+
+   Widening this exception to any other type needs the same standard of
+   evidence: a documented platform behaviour that makes redirecting impossible.
+   "It would be convenient" is not that.
 3. Validate zip entries before extraction, not after.
 4. `SUPABASE_KEY` is `service_role` and lives only in Space secrets. It must
    never reach the frontend, never appear in a response body, never be logged.

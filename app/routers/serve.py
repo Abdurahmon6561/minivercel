@@ -1,8 +1,30 @@
 """GET /s/{slug}/{path} - the serving flow.
 
-NON-NEGOTIABLE #2: this router never reads a user's file bytes. It resolves a
-request path to a storage key and returns a 307 pointing at Supabase's public
-CDN URL. The dyno's CPU and bandwidth are untouched by the payload.
+NON-NEGOTIABLE #2, and its one exception:
+
+Everything is served by 307 redirect to Supabase's public CDN URL, so the dyno's
+CPU and bandwidth are untouched by the payload - EXCEPT HTML, which is streamed
+through this process.
+
+That exception is forced on us. Supabase Storage deliberately serves `text/html`
+as `text/plain` on public URLs (supabase/storage#186, discussions #2557 and
+#39110). It is anti-phishing policy for the shared `*.supabase.co` origin, not a
+bug, and not something an upload header can defeat: our objects carry the right
+`metadata->>'mimetype'` and are still downgraded on the way out. A redirect
+therefore cannot render a page, which makes redirect-only serving incompatible
+with the product. HTML is the whole of the exception; css, js, images and fonts
+come back from Supabase with correct types and keep the redirect.
+
+Consequences that follow from proxying HTML, and are dealt with here:
+
+  * user HTML now executes on OUR origin, not on supabase.co. That is precisely
+    the risk Supabase declined to take. Nothing on this domain may ever set a
+    cookie or hold a session - see README "Known limitations".
+  * HTML bytes cross the dyno twice (Supabase -> us -> browser), counting
+    against Render bandwidth and Supabase egress. Capped per response by
+    MAX_PROXY_BYTES, and HTML is the small half of a static site.
+  * proxying lets us return a real status code, so a deployment's 404.html is
+    finally served *as* a 404 instead of a 200.
 
 Path resolution (SPEC.md "Serving flow" step 2):
 
@@ -19,18 +41,30 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException, Request, Response, status
-from fastapi.responses import PlainTextResponse, RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import PlainTextResponse, RedirectResponse, StreamingResponse
 
 from ..cache import MISSING, manifest_cache, project_cache
+from ..config import Settings, get_settings
 from ..deps import get_store, serve_limiter
-from ..mimemap import has_known_extension
+from ..mimemap import content_type_for, has_known_extension
 from ..ratelimit import client_ip
 from ..store import is_valid_slug
 
 log = logging.getLogger("minivercel.serve")
 
 router = APIRouter(tags=["serve"])
+
+PROXY_CHUNK = 64 * 1024
+
+# Types Supabase downgrades on public URLs, and which therefore have to be
+# proxied. Both are document types the browser renders and scripts run in;
+# everything else in the whitelist comes back from Supabase intact.
+PROXIED_TYPES = ("text/html", "application/xhtml+xml")
+
+
+def _must_proxy(key: str) -> bool:
+    return content_type_for(key).startswith(PROXIED_TYPES)
 
 # Redirects are cheap but they must not pin a stale deployment in a CDN or
 # browser cache: a redeploy has to take effect on the next request.
@@ -121,6 +155,76 @@ async def _resolve(deployment_id: str, path: str) -> tuple[str | None, bool]:
     return None, False
 
 
+async def _proxy_html(key: str, status_code: int, max_bytes: int) -> Response:
+    """Stream one HTML object through this process with the right type.
+
+    Streamed, never buffered: a 5 MB cap on a 512 MB dyno is only safe if the
+    bytes are not all resident at once, and several concurrent requests for the
+    same large page would otherwise be enough to matter.
+    """
+    store = get_store()
+    try:
+        upstream = await store.db.open_object_stream(key)
+    except Exception as exc:
+        log.warning("could not open %s for proxying: %s", key, exc)
+        return _unavailable()
+
+    if upstream.status_code != 200:
+        await upstream.aclose()
+        log.warning("proxy fetch of %s returned %s", key, upstream.status_code)
+        return _not_found("Not found.")
+
+    # Storage sends Content-Length, so oversize is normally refused before a
+    # single byte is streamed. The counter below is the backstop for when it is
+    # absent - by then headers are already sent and truncation is all that is
+    # left, so this path is loud in the log.
+    declared = upstream.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > max_bytes:
+        await upstream.aclose()
+        log.error(
+            "refusing to proxy %s: %s bytes exceeds the %d byte cap",
+            key,
+            declared,
+            max_bytes,
+        )
+        return PlainTextResponse(
+            "This page is too large to serve.",
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"},
+        )
+
+    async def body():
+        sent = 0
+        try:
+            async for chunk in upstream.aiter_bytes(PROXY_CHUNK):
+                sent += len(chunk)
+                if sent > max_bytes:
+                    log.error(
+                        "truncating %s at %d bytes: no Content-Length and the "
+                        "response ran past the %d byte cap",
+                        key,
+                        sent,
+                        max_bytes,
+                    )
+                    return
+                yield chunk
+        finally:
+            await upstream.aclose()
+
+    return StreamingResponse(
+        body(),
+        status_code=status_code,
+        media_type=content_type_for(key),
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            # Same reasoning as the redirect: a redeploy must be visible on the
+            # next request, so nothing pins this response.
+            "Cache-Control": "public, max-age=0, must-revalidate",
+        },
+    )
+
+
 def _not_found(message: str) -> PlainTextResponse:
     return PlainTextResponse(
         message,
@@ -155,7 +259,12 @@ async def serve_root_no_slash(slug: str) -> Response:
 
 
 @router.get("/s/{slug}/{path:path}")
-async def serve(slug: str, path: str, request: Request) -> Response:
+async def serve(
+    slug: str,
+    path: str,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+) -> Response:
     decision = serve_limiter().check(client_ip(request))
     if not decision.allowed:
         raise HTTPException(
@@ -194,10 +303,23 @@ async def serve(slug: str, path: str, request: Request) -> Response:
     if key is None:
         return _not_found("Not found.")
 
-    url = get_store().db.public_url("%s/%s" % (deployment_id, key))
+    object_key = "%s/%s" % (deployment_id, key)
+
+    # HTML: proxy, because a redirect would hand the browser text/plain. The
+    # 404.html fallback finally gets to be an actual 404.
+    if _must_proxy(key):
+        return await _proxy_html(
+            object_key,
+            status.HTTP_404_NOT_FOUND if is_fallback else status.HTTP_200_OK,
+            settings.max_proxy_bytes,
+        )
+
+    # Everything else: redirect, and never touch the bytes.
     headers = dict(REDIRECT_HEADERS)
     if is_fallback:
         headers["X-MiniVercel-Fallback"] = "404"
     return RedirectResponse(
-        url, status_code=status.HTTP_307_TEMPORARY_REDIRECT, headers=headers
+        get_store().db.public_url(object_key),
+        status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+        headers=headers,
     )

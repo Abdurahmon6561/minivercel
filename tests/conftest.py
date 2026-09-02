@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import io
 import os
 import time
@@ -19,6 +20,7 @@ import jwt  # noqa: E402
 import pytest  # noqa: E402
 
 from app import cache, deps  # noqa: E402
+from app.config import get_settings  # noqa: E402
 from app.main import app  # noqa: E402
 from app.store import Store  # noqa: E402
 
@@ -52,6 +54,23 @@ def make_zip(files: dict[str, bytes | str], *, compression=zipfile.ZIP_DEFLATED)
             data = content.encode() if isinstance(content, str) else content
             zf.writestr(name, data)
     return buffer.getvalue()
+
+
+@pytest.fixture
+def override_settings():
+    """Swap in modified Settings for one test.
+
+    Settings is a frozen dataclass behind an lru_cache, so it cannot be mutated;
+    FastAPI's dependency_overrides is the supported seam.
+    """
+
+    def apply(**changes):
+        replaced = dataclasses.replace(get_settings(), **changes)
+        app.dependency_overrides[get_settings] = lambda: replaced
+        return replaced
+
+    yield apply
+    app.dependency_overrides.pop(get_settings, None)
 
 
 @pytest.fixture
