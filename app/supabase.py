@@ -63,7 +63,16 @@ class SupabaseClient:
         return text[:500]
 
     def _check(self, response: httpx.Response, what: str) -> httpx.Response:
-        if response.status_code >= 400:
+        """Accept 2xx and nothing else.
+
+        `>= 400` is the tempting version and it is wrong. PostgREST answers an
+        ambiguous embed with `300 Multiple Choices` and a body describing the
+        candidate relationships - not a row list. Letting that through means the
+        caller iterates a JSON object as if it were rows and dies somewhere far
+        away with `'str' object has no attribute 'get'`. Any non-2xx is an error
+        here, reported with the status and body that explain it.
+        """
+        if not 200 <= response.status_code < 300:
             detail = self._redact(response.text)
             log.error("%s failed: %s %s", what, response.status_code, detail)
             raise SupabaseError(

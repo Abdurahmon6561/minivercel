@@ -20,6 +20,13 @@ from .supabase import SupabaseClient, SupabaseError
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$")
 _NON_SLUG = re.compile(r"[^a-z0-9]+")
 
+# Quota accounting bounds. A free-tier user capped at 100 MB cannot get near
+# these; they exist so a pathological account cannot turn one upload into an
+# unbounded scan.
+MAX_PROJECTS = 1000
+MAX_DEPLOYMENTS_SCANNED = 5000
+PROJECT_ID_BATCH = 100
+
 PROJECT_COLUMNS = "id,name,slug,owner_id,live_deployment_id,created_at"
 DEPLOYMENT_COLUMNS = (
     "id,project_id,status,size_bytes,file_count,error,commit_sha,created_at"
@@ -191,14 +198,38 @@ class Store:
 
         Counts everything that is not `failed`: a failed deployment has already
         had its objects removed, anything else still owns bytes.
+
+        Two plain queries rather than one embedded join. `projects!inner(...)`
+        looks tidier but it is ambiguous: there are two foreign keys between
+        these tables - `deployments.project_id -> projects.id` and
+        `projects.live_deployment_id -> deployments.id` - so PostgREST cannot
+        tell which relationship the embed means and answers `300 Multiple
+        Choices`. Naming the constraint would disambiguate it, at the cost of
+        hard-coding a database identifier into application code that then breaks
+        silently if the constraint is ever renamed. Two queries have no such
+        coupling.
         """
-        rows = await self.db.select(
-            "deployments",
-            {
-                "select": "size_bytes,projects!inner(owner_id)",
-                "projects.owner_id": "eq." + owner_id,
-                "status": "neq.failed",
-                "limit": "5000",
-            },
+        projects = await self.db.select(
+            "projects",
+            {"select": "id", "owner_id": "eq." + owner_id, "limit": str(MAX_PROJECTS)},
         )
-        return sum(int(row.get("size_bytes") or 0) for row in rows)
+        project_ids = [row["id"] for row in projects if row.get("id")]
+        if not project_ids:
+            return 0
+
+        total = 0
+        # `in.(...)` goes in the query string, so chunk it rather than risk a
+        # URL long enough for PostgREST or an intermediary to reject.
+        for start in range(0, len(project_ids), PROJECT_ID_BATCH):
+            batch = project_ids[start : start + PROJECT_ID_BATCH]
+            rows = await self.db.select(
+                "deployments",
+                {
+                    "select": "size_bytes",
+                    "project_id": "in.(%s)" % ",".join(batch),
+                    "status": "neq.failed",
+                    "limit": str(MAX_DEPLOYMENTS_SCANNED),
+                },
+            )
+            total += sum(int(row.get("size_bytes") or 0) for row in rows)
+        return total

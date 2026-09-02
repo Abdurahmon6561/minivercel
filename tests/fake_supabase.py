@@ -30,20 +30,25 @@ class FakeSupabase:
     @staticmethod
     def _test(value, predicate: str) -> bool:
         op, _, expected = predicate.partition(".")
-        if expected == "null":
-            expected_value = None
-        else:
-            expected_value = expected
-        if op == "eq":
-            return str(value) == str(expected_value) if value is not None else expected_value is None
-        if op == "neq":
-            return not (str(value) == str(expected_value) if value is not None else expected_value is None)
-        raise AssertionError("unsupported operator: " + op)
 
-    def _parent(self, row: dict) -> dict | None:
-        return next(
-            (p for p in self.tables["projects"] if p["id"] == row.get("project_id")), None
-        )
+        if op == "in":
+            members = {
+                item.strip().strip('"')
+                for item in expected.strip("()").split(",")
+                if item.strip()
+            }
+            return value is not None and str(value) in members
+
+        expected_value = None if expected == "null" else expected
+        if op == "eq":
+            if value is None:
+                return expected_value is None
+            return str(value) == str(expected_value)
+        if op == "neq":
+            if value is None:
+                return expected_value is not None
+            return str(value) != str(expected_value)
+        raise AssertionError("unsupported operator: " + op)
 
     # -- PostgREST ---------------------------------------------------------
 
@@ -51,18 +56,21 @@ class FakeSupabase:
         rows = list(self.tables[table])
         reserved = {"select", "order", "limit", "offset"}
 
+        # Reproduce the real failure this fake once papered over: `projects` and
+        # `deployments` are joined by two foreign keys, so an embed naming only
+        # the table is ambiguous and PostgREST answers 300, not rows.
+        if "!inner" in str(params.get("select", "")) or any(
+            "." in key for key in params if key not in reserved
+        ):
+            raise SupabaseError(
+                "Could not embed because more than one relationship was found",
+                300,
+            )
+
         for key, predicate in params.items():
             if key in reserved:
                 continue
-            if "." in key:  # embedded filter, e.g. projects.owner_id
-                _, _, column = key.partition(".")
-                rows = [
-                    row
-                    for row in rows
-                    if (self._parent(row) or {}) and self._test((self._parent(row) or {}).get(column), predicate)
-                ]
-            else:
-                rows = [row for row in rows if self._test(row.get(key), predicate)]
+            rows = [row for row in rows if self._test(row.get(key), predicate)]
 
         order = params.get("order")
         if order:
