@@ -17,7 +17,16 @@ from nacl import encoding, public
 from app import deploytoken, gitops
 from app.config import get_settings
 from app.crypto import decrypt
-from app.github import GitHubClient, GitHubError, seal_secret, split_repo
+from app.github import (
+    HOOK_SCOPES,
+    WORKFLOW_SCOPES,
+    GitHubClient,
+    GitHubError,
+    has_scope,
+    parse_scopes,
+    seal_secret,
+    split_repo,
+)
 from app.zipvalidate import ZipEntry, select_site_root
 
 from .conftest import auth_headers, make_zip
@@ -52,8 +61,17 @@ class FakeGitHub:
         self.can_admin = can_admin
         self.can_push = can_push
         self._next_hook_id = 4242
+        #: What GitHub reports as granted, via X-OAuth-Scopes on every response.
+        self.scopes = "repo,workflow"
+        self.fail_hook_with_404 = False
 
     def handler(self, request: httpx.Request) -> httpx.Response:
+        response = self._route(request)
+        # GitHub returns the granted scopes on every API response.
+        response.headers["X-OAuth-Scopes"] = self.scopes
+        return response
+
+    def _route(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
         self.calls.append((request.method, path))
 
@@ -73,6 +91,9 @@ class FakeGitHub:
             return httpx.Response(200, content=self.zipball)
 
         if path.endswith("/hooks") and request.method == "POST":
+            if self.fail_hook_with_404:
+                # What GitHub actually does for a missing hook scope.
+                return httpx.Response(404, json={"message": "Not Found"})
             hook_id = self._next_hook_id
             self._next_hook_id += 1
             self.hooks[hook_id] = json.loads(request.content)
@@ -639,3 +660,121 @@ def test_hostile_build_commands_are_rejected(command):
 def test_hostile_output_dirs_are_rejected(directory):
     with pytest.raises(gitops.GitOpsError):
         gitops.validate_build_settings(None, directory)
+
+
+# -- OAuth scopes -------------------------------------------------------------
+#
+# GitHub reports a missing scope as 404, not 403, so a too-narrow sign-in is
+# indistinguishable from a deleted repository unless the scopes are checked
+# directly. These cover that check and the message it produces.
+
+
+def test_parse_scopes_reads_the_github_header():
+    assert parse_scopes("repo, workflow, gist") == {"repo", "workflow", "gist"}
+    assert parse_scopes("") == set()
+    assert parse_scopes(None) == set()
+
+
+def test_public_repo_does_not_grant_hooks():
+    """The actual cause of "the token does not have access to it".
+
+    Per GitHub's scope docs, public_repo covers code, commit statuses, projects,
+    collaborators and deployment statuses - hooks are not in that list.
+    """
+    assert not has_scope({"public_repo"}, HOOK_SCOPES)
+    assert has_scope({"admin:repo_hook"}, HOOK_SCOPES)
+    assert has_scope({"repo"}, HOOK_SCOPES)
+
+
+def test_repo_does_not_imply_workflow():
+    """`repo` is not a superset: committing under .github/workflows/ needs
+    `workflow` on its own."""
+    assert not has_scope({"repo"}, WORKFLOW_SCOPES)
+    assert has_scope({"repo", "workflow"}, WORKFLOW_SCOPES)
+
+
+def test_unknown_scopes_do_not_block():
+    """No header means we do not know; GitHub stays the authority."""
+    assert has_scope(set(), HOOK_SCOPES)
+    assert has_scope(None, WORKFLOW_SCOPES)
+
+
+async def test_importing_with_public_repo_scope_names_the_missing_scope(
+    client, supabase, github
+):
+    """The reported failure, end to end.
+
+    Before: GitHub 404s the hook call and the user is told the repository may
+    not exist. After: they are told which scope is missing.
+    """
+    github.scopes = "public_repo"
+    await connect_github(client, supabase)
+
+    response = await client.post(
+        "/api/projects/import", headers=auth_headers(), json={"repo": REPO}
+    )
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert "admin:repo_hook" in detail
+    assert "sign in again" in detail.lower()
+
+    # And nothing was half-created.
+    assert supabase.tables["projects"] == []
+    assert github.hooks == {}
+
+
+async def test_importing_with_a_hook_scope_succeeds(client, supabase, github):
+    github.scopes = "public_repo,admin:repo_hook"
+    await connect_github(client, supabase)
+    response = await client.post(
+        "/api/projects/import", headers=auth_headers(), json={"repo": REPO}
+    )
+    assert response.status_code == 201
+
+
+async def test_enabling_builds_without_workflow_scope_is_refused(
+    client, supabase, github
+):
+    """`repo` is enough to import and still not enough to commit a workflow."""
+    github.scopes = "repo"
+    await connect_github(client, supabase)
+    imported_slug = (
+        await client.post(
+            "/api/projects/import", headers=auth_headers(), json={"repo": REPO}
+        )
+    ).json()["slug"]
+
+    response = await client.post(
+        "/api/projects/%s/builds" % imported_slug, headers=auth_headers()
+    )
+    assert response.status_code == 400
+    assert "workflow" in response.json()["detail"]
+
+    # Refused before anything was written - no live token for a workflow that
+    # was never committed.
+    project = supabase.tables["projects"][0]
+    assert project["deploy_token_sha256"] is None
+    assert project["builds_enabled"] is False
+    assert github.files == {}
+    assert github.secrets == {}
+
+
+async def test_a_404_on_a_hook_call_blames_the_scope_not_the_repository(
+    client, supabase, github
+):
+    """If the pre-check is somehow passed, the 404 message still says the right
+    thing rather than 'the repository is private'."""
+    from app.github import GitHubClient
+
+    github.scopes = "repo,workflow"  # pre-check passes
+    github.fail_hook_with_404 = True
+    await connect_github(client, supabase)
+
+    response = await client.post(
+        "/api/projects/import", headers=auth_headers(), json={"repo": REPO}
+    )
+    assert response.status_code == 404
+    detail = response.json()["detail"]
+    assert "admin:repo_hook" in detail
+    assert "private" not in detail.lower(), "the old, misleading advice"
+    del GitHubClient

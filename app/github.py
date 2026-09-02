@@ -26,6 +26,66 @@ API = "https://api.github.com"
 ACCEPT = "application/vnd.github+json"
 API_VERSION = "2022-11-28"
 
+# OAuth scopes, verified against GitHub's own documentation:
+#   https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps
+#
+# The trap: `public_repo` grants "read/write access to code, commit statuses,
+# repository projects, collaborators, and deployment statuses" - and NOT hooks.
+# Registering a webhook needs a hook scope, and GitHub answers a scope-less hook
+# call with 404, not 403, so it is indistinguishable from "no such repository"
+# unless you check the scopes yourself. That is what this section is for.
+#
+# Any ONE of the alternatives in each tuple is sufficient.
+HOOK_SCOPES = ("admin:repo_hook", "write:repo_hook", "repo")
+#: Committing under .github/workflows/ needs `workflow`, which `repo` does NOT
+#: imply. (GitHub waives it only when an identical file already exists on
+#: another branch, which is never true for a file we are creating.)
+WORKFLOW_SCOPES = ("workflow",)
+#: Actions secrets are repository administration.
+SECRET_SCOPES = ("repo",)
+#: Reading a private repository at all.
+PRIVATE_REPO_SCOPES = ("repo",)
+
+#: Which scope a given call needs, for the 404 message. Keyed on the label
+#: passed to `_check`.
+SCOPE_FOR_CALL = {
+    "create webhook": "admin:repo_hook (or repo)",
+    "delete webhook": "admin:repo_hook (or repo)",
+    "commit file": "workflow",
+    "delete file": "workflow",
+    "get repo public key": "repo",
+    "put actions secret": "repo",
+    "delete actions secret": "repo",
+}
+
+
+def parse_scopes(header: str | None) -> set[str]:
+    """The X-OAuth-Scopes header GitHub returns on every API response."""
+    if not header:
+        return set()
+    return {scope.strip() for scope in header.split(",") if scope.strip()}
+
+
+def has_scope(granted: set[str] | None, alternatives: tuple[str, ...]) -> bool:
+    """Whether any of `alternatives` was granted.
+
+    Unknown scopes (we have not made a call yet, or GitHub sent no header) count
+    as satisfied: GitHub is the authority, and guessing "no" here would block a
+    request that would actually have worked.
+    """
+    if not granted:
+        return True
+    return any(alternative in granted for alternative in alternatives)
+
+
+def missing_scope_message(alternatives: tuple[str, ...], what: str) -> str:
+    return (
+        "Your GitHub sign-in is missing the `%s` scope, which is required to %s. "
+        "Sign out and sign in again to re-authorise with the wider scope. (If you "
+        "run this dashboard yourself, set VITE_GITHUB_SCOPES to "
+        "`repo,workflow` and redeploy it.)" % (alternatives[0], what)
+    )
+
 # Zipballs redirect to codeload; the download must follow that.
 DOWNLOAD_TIMEOUT = httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0)
 TIMEOUT = httpx.Timeout(connect=10.0, read=30.0, write=30.0, pool=10.0)
@@ -83,6 +143,9 @@ def seal_secret(public_key_base64: str, value: str) -> str:
 class GitHubClient:
     def __init__(self, token: str) -> None:
         self._token = token
+        #: Populated from X-OAuth-Scopes on the first response. This is what
+        #: GitHub actually granted, which is not necessarily what we asked for.
+        self.granted_scopes: set[str] = set()
         self._client = httpx.AsyncClient(
             base_url=API,
             timeout=TIMEOUT,
@@ -105,7 +168,13 @@ class GitHubClient:
 
     # -- internals ---------------------------------------------------------
 
+    def _note_scopes(self, response: httpx.Response) -> None:
+        scopes = parse_scopes(response.headers.get("x-oauth-scopes"))
+        if scopes:
+            self.granted_scopes = scopes
+
     def _check(self, response: httpx.Response, what: str) -> httpx.Response:
+        self._note_scopes(response)
         if 200 <= response.status_code < 300:
             return response
 
@@ -119,10 +188,25 @@ class GitHubClient:
         elif response.status_code == 403 and "rate limit" in message.lower():
             message = "GitHub API rate limit reached. Try again shortly."
         elif response.status_code == 404:
-            message = (
-                "Not found on GitHub, or the token does not have access to it. "
-                "If the repository is private, sign in again with the `repo` scope."
-            )
+            # GitHub returns 404 rather than 403 when a token lacks a scope, so
+            # this one status covers both "does not exist" and "not allowed".
+            # Naming the scope the *specific* call needs beats a blanket guess:
+            # telling someone to add `repo` when the real problem is `workflow`
+            # sends them round the loop a second time.
+            needed = SCOPE_FOR_CALL.get(what)
+            if needed:
+                message = (
+                    "GitHub returned 404 for this call. That usually means the "
+                    "sign-in is missing the `%s` scope rather than that the "
+                    "repository is gone - GitHub reports a missing scope as 404. "
+                    "Sign out and sign in again to re-authorise." % needed
+                )
+            else:
+                message = (
+                    "Not found on GitHub, or the token cannot see it. A private "
+                    "repository needs the `repo` scope; sign out and sign in "
+                    "again to re-authorise."
+                )
 
         log.warning("%s failed: %s %s", what, response.status_code, message)
         raise GitHubError(message, response.status_code)

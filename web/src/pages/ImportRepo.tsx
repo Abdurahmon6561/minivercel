@@ -23,6 +23,18 @@ export function ImportRepo({ me, onImported }: { me: Me | null; onImported: () =
 
   const connected = me?.github.connected ?? false;
 
+  // Warn before they click Import rather than after. GitHub reports a missing
+  // scope as 404, so without this the first sign that a sign-in was too narrow
+  // is an error claiming the repository does not exist.
+  const granted = new Set(
+    (me?.github.scopes ?? "").split(",").map((scope) => scope.trim()).filter(Boolean),
+  );
+  const canHook =
+    granted.size === 0 ||
+    granted.has("repo") ||
+    granted.has("admin:repo_hook") ||
+    granted.has("write:repo_hook");
+
   useEffect(() => {
     if (!connected) return;
     let active = true;
@@ -62,6 +74,21 @@ export function ImportRepo({ me, onImported }: { me: Me | null; onImported: () =
 
   return (
     <div>
+      {!canHook && (
+        <Panel className="mb-6 border-pending/40 px-5 py-4">
+          <p className="text-sm text-text">
+            Your GitHub sign-in cannot register webhooks.
+          </p>
+          <p className="mt-2 text-xs leading-relaxed text-muted">
+            It was authorised with{" "}
+            <Mono className="text-faint">{me?.github.scopes}</Mono>, which does
+            not cover repository hooks — so importing will fail, and GitHub
+            reports that as “not found” rather than as a permissions problem.
+            Sign out and sign in again to re-authorise.
+          </p>
+        </Panel>
+      )}
+
       {error && (
         <div className="mb-6">
           <ErrorBanner message={error} onDismiss={() => setError(null)} />

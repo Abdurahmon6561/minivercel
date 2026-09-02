@@ -25,7 +25,14 @@ from ..gitops import (
     enable_builds,
     new_webhook_secret,
 )
-from ..github import GitHubError, split_repo
+from ..github import (
+    HOOK_SCOPES,
+    PRIVATE_REPO_SCOPES,
+    GitHubError,
+    has_scope,
+    missing_scope_message,
+    split_repo,
+)
 from ..store import Conflict, slugify
 from ..urls import site_url, webhook_url
 
@@ -103,6 +110,20 @@ async def import_repo(
             raise GitOpsError(
                 "You need admin access on %s to add the push webhook that makes "
                 "auto-deploy work." % repo.full_name
+            )
+
+        # Check the scope before creating the project. GitHub answers a
+        # hook call made without a hook scope with 404, which reads as "the
+        # repository does not exist" - so without this check the user is told
+        # their repository is missing when their sign-in is simply too narrow.
+        # `public_repo` is the default and does NOT cover hooks.
+        if not has_scope(client.granted_scopes, HOOK_SCOPES):
+            raise GitOpsError(
+                missing_scope_message(HOOK_SCOPES, "register the push webhook")
+            )
+        if repo.private and not has_scope(client.granted_scopes, PRIVATE_REPO_SCOPES):
+            raise GitOpsError(
+                missing_scope_message(PRIVATE_REPO_SCOPES, "deploy a private repository")
             )
 
         try:

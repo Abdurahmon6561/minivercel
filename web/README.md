@@ -97,7 +97,7 @@ Environment variables:
 VITE_SUPABASE_URL       https://<ref>.supabase.co
 VITE_SUPABASE_ANON_KEY  <anon key>
 VITE_API_BASE_URL       https://minivercel.onrender.com
-VITE_GITHUB_SCOPES      public_repo
+VITE_GITHUB_SCOPES      repo,workflow
 ```
 
 The **anon** key. It is public by design and RLS is what makes it safe. The
@@ -135,7 +135,33 @@ Phases 2, 3 and 4. Promoting an *older* deployment back to live is a one-line
 change (`live_deployment_id`) but it is Phase 5's rollback feature, so it is not
 here — "upload new version" and "push to the repo" both create a new deployment.
 
-The `public_repo` scope is enough to import and deploy a public repository. A
-**private** repository needs `repo`: set `VITE_GITHUB_SCOPES=repo` and have
-users sign in again. Importing also needs **admin** on the repository, because
-that is what GitHub requires to add a webhook.
+### Scopes — `public_repo` is not enough
+
+This is the easiest thing to get wrong, because **GitHub reports a missing scope
+as `404`**, so it reads as "repository not found" rather than "wrong scope".
+
+| Operation | Scope |
+| --- | --- |
+| Read a public repo, download its zipball | `public_repo` |
+| Read a **private** repo | `repo` |
+| Register the push webhook (Phase 3) | `admin:repo_hook`, or `repo` |
+| Commit `.github/workflows/minivercel.yml` (Phase 4) | `workflow` — **`repo` does not imply this** |
+| Store the `MINIVERCEL_TOKEN` Actions secret | `repo` |
+
+Per [GitHub's scope
+documentation](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps),
+`public_repo` covers "code, commit statuses, repository projects, collaborators,
+and deployment statuses" — hooks are not in that list.
+
+So the default is `repo,workflow`, which covers everything including private
+repositories. Public-only deployments can narrow it to
+`public_repo,admin:repo_hook,workflow`.
+
+Changing `VITE_GITHUB_SCOPES` only affects **new** sign-ins. Existing users must
+sign out and sign in again to re-authorise — their stored token keeps whatever
+scopes it was granted. The API checks the granted scopes (from GitHub's
+`X-OAuth-Scopes` header) before writing anything, so a too-narrow sign-in gets a
+message naming the missing scope instead of a confusing 404.
+
+Importing also needs **admin** on the repository, because that is what GitHub
+requires to add a webhook.

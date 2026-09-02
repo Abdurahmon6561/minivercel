@@ -26,4 +26,18 @@ export const supabase = createClient(url ?? "http://unset", anonKey ?? "unset", 
   },
 });
 
-export const githubScopes = import.meta.env.VITE_GITHUB_SCOPES || "public_repo";
+/**
+ * `public_repo` is NOT enough, which is easy to get wrong.
+ *
+ * Per GitHub's scope documentation, `public_repo` covers "code, commit
+ * statuses, repository projects, collaborators, and deployment statuses" — and
+ * not hooks. Importing a repo registers a push webhook, and Phase 4 commits a
+ * file under .github/workflows/, which needs `workflow` on top (`repo` does not
+ * imply it). GitHub reports a missing scope as 404, so getting this wrong looks
+ * like "repository not found" rather than "wrong scope".
+ *
+ * `repo,workflow` covers private repositories too. For public-only, the minimum
+ * is `public_repo,admin:repo_hook,workflow`.
+ */
+export const githubScopes =
+  import.meta.env.VITE_GITHUB_SCOPES || "repo,workflow";

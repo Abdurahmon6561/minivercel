@@ -25,7 +25,15 @@ from . import deploytoken
 from .config import Settings
 from .crypto import EncryptionUnavailable, decrypt
 from .deployer import QuotaExceeded, cleanup, mark_failed, publish
-from .github import GitHubClient, GitHubError, split_repo
+from .github import (
+    SECRET_SCOPES,
+    WORKFLOW_SCOPES,
+    GitHubClient,
+    GitHubError,
+    has_scope,
+    missing_scope_message,
+    split_repo,
+)
 from .store import Store
 from .urls import api_base_url
 from .zipvalidate import ZipRejected
@@ -263,10 +271,27 @@ async def enable_builds(store: Store, settings: Settings, project: dict) -> dict
     output_dir = project.get("output_dir") or "dist"
     validate_build_settings(build_command, output_dir)
 
+    client = await client_for_user(store, settings, project["owner_id"])
+
+    # Learn the granted scopes before writing anything. `repo` does NOT imply
+    # `workflow`, so a user who reconnected to fix webhooks can still be unable
+    # to commit the workflow file - and GitHub reports that as a 404 halfway
+    # through, after the deploy token is already live in their repo.
+    try:
+        await client.get_repo(owner, name)
+        for scopes, doing in (
+            (SECRET_SCOPES, "store the deploy token as a repository secret"),
+            (WORKFLOW_SCOPES, "commit the build workflow to .github/workflows/"),
+        ):
+            if not has_scope(client.granted_scopes, scopes):
+                raise GitOpsError(missing_scope_message(scopes, doing))
+    except Exception:
+        await client.aclose()
+        raise
+
     token = deploytoken.generate()
     await store.set_deploy_token(project["id"], deploytoken.fingerprint(token))
 
-    client = await client_for_user(store, settings, project["owner_id"])
     try:
         await client.put_actions_secret(owner, name, SECRET_NAME, token)
         await client.put_file(
