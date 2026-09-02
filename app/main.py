@@ -69,15 +69,38 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+#: Every method this API routes, listed explicitly rather than as "*".
+#:
+#: A wildcard would have hidden the bug this list is here to prevent: PATCH was
+#: added with the Phase 3/4 project switches and this list was not updated, so
+#: the browser preflight for `PATCH /api/projects/{slug}` got a 400 "Disallowed
+#: method" from CORSMiddleware and the dashboard saw "does not have HTTP ok
+#: status". `test_cors.py` now asserts this covers every routed method, so the
+#: next new verb fails a test instead of failing in a browser.
+ALLOWED_METHODS = ["GET", "HEAD", "POST", "PATCH", "DELETE", "OPTIONS"]
+
+#: Request headers the dashboard actually sends. `X-Commit-Sha` is for the
+#: Phase 4 Actions runner, which is not a browser and needs no preflight, but it
+#: costs nothing to allow and makes a browser-based test of that path possible.
+ALLOWED_HEADERS = ["Authorization", "Content-Type", "X-Commit-Sha"]
+
 _settings = get_settings()
 if _settings.cors_origins:
+    # Added first and, being the only middleware, outermost: a preflight is
+    # answered here and never reaches routing. That is what keeps `require_user`
+    # from 401ing an OPTIONS request, which browsers send without credentials.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_settings.cors_origins,
         allow_credentials=False,  # we authenticate with a bearer token, not cookies
-        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-Commit-Sha"],
+        allow_methods=ALLOWED_METHODS,
+        allow_headers=ALLOWED_HEADERS,
         max_age=600,
+    )
+else:
+    log.warning(
+        "CORS_ORIGINS is empty: no CORS headers will be sent and every browser "
+        "request from the dashboard will be blocked."
     )
 
 

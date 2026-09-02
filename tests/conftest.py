@@ -17,6 +17,10 @@ os.environ.setdefault("SERVE_RATE_LIMIT_PER_MIN", "1000")
 os.environ.setdefault(
     "GITHUB_TOKEN_KEY", "aTHZLdgs0oUdF4kXbTb2cCiZ7pdOoGWMU9Hs3sOhSbo="
 )
+# Without this the CORS middleware is never installed (main.py adds it only when
+# CORS_ORIGINS is non-empty), so no test could see a preflight - which is how a
+# missing PATCH in allow_methods reached production.
+os.environ.setdefault("CORS_ORIGINS", "http://localhost:5173,https://minivercel.vercel.app")
 
 import httpx  # noqa: E402
 import jwt  # noqa: E402
