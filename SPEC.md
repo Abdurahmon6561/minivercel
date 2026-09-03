@@ -286,4 +286,4 @@ receive a zip of static output. Our security model from Phase 1 is unchanged.
 - [x] Phase 2 dashboard on Vercel
 - [x] Phase 3 GitHub import + push auto-deploy
 - [x] Phase 4 Actions-based builds
-- [ ] Phase 5 GC and rollback
+- [x] Phase 5 GC, rollback and build logs

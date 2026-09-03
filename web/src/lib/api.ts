@@ -69,10 +69,29 @@ export interface Deployment {
   error: string | null;
   commit_sha: string | null;
   created_at: string;
+  /** True for the deployment the public URL currently serves. */
+  is_live: boolean;
+  /** Where this deployment can be viewed without promoting it. Null unless ready. */
+  preview_url: string | null;
+  /** Whether a build log exists. The text is fetched only when it is opened. */
+  has_build_log: boolean;
 }
 
-export interface LastDeployment extends Deployment {
-  is_live: boolean;
+/** The project list sends the same shape for its single most recent deployment. */
+export type LastDeployment = Deployment;
+
+export interface BuildLog {
+  deployment_id: string;
+  log: string;
+  line_count: number;
+  received_at: string | null;
+}
+
+export interface PromoteResult {
+  live_deployment_id: string;
+  previous_deployment_id?: string | null;
+  url: string;
+  changed: boolean;
 }
 
 export interface WebhookDelivery {
@@ -127,8 +146,11 @@ export interface Me {
   usage: {
     bytes_used: number;
     bytes_limit: number;
+    bytes_available: number;
     max_deployment_bytes: number;
     max_files_per_deployment: number;
+    /** What garbage collection keeps, so the UI can explain the bar. */
+    retention: { keep_recent_ready: number; max_age_days: number };
   };
   github: {
     connected: boolean;
@@ -154,6 +176,22 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     }),
+
+  /**
+   * Roll back (or forward). A pointer change on the server: instant, and it
+   * touches no storage, so nothing is lost either way.
+   */
+  promoteDeployment: (slug: string, deploymentId: string) =>
+    request<PromoteResult>(
+      `/api/projects/${encodeURIComponent(slug)}/deployments/${encodeURIComponent(
+        deploymentId,
+      )}/promote`,
+      { method: "POST" },
+    ),
+
+  /** Fetched lazily: the panel is collapsed until someone opens it. */
+  getBuildLog: (deploymentId: string) =>
+    request<BuildLog>(`/api/deployments/${encodeURIComponent(deploymentId)}/logs`),
 
   listGithubRepos: () => request<GithubRepo[]>("/api/me/github/repos"),
 

@@ -26,10 +26,12 @@ import os
 import shutil
 from dataclasses import dataclass
 
+from . import gc
 from .config import Settings
 from .mimemap import content_type_for
 from .store import Store
 from .zipvalidate import (
+    BUILD_OUTPUT_DIRS,
     ZipRejected,
     extract,
     inspect,
@@ -42,10 +44,23 @@ log = logging.getLogger("minivercel.deployer")
 # Storage has no batch upload, so concurrency is the only lever on deploy time.
 UPLOAD_CONCURRENCY = 8
 
+#: Written from BUILD_OUTPUT_DIRS rather than spelled out, so the message can
+#: never name a directory the code does not actually look in.
+_SEARCHED = ", ".join(directory + "/" for directory in BUILD_OUTPUT_DIRS)
+
 NO_STATIC_OUTPUT = (
-    "No static output found. The repository has no index.html at its root and "
-    "no dist/, build/, public/ or _site/ directory containing one. Enable "
-    "builds to have GitHub Actions build the site first."
+    "No index.html found. Searched the repository root and then %s. "
+    "If this project needs a build step, enable builds on the project page: "
+    "GitHub Actions will run your build command and deploy its output "
+    "directory. If it is already a static site, check that index.html is at "
+    "the root of the repository or of one of those directories." % _SEARCHED
+)
+
+NO_INDEX_IN_ZIP = (
+    "No index.html found at the root of the archive. Zip the *contents* of "
+    "your site folder, not the folder itself - `cd site && zip -r ../site.zip "
+    ".` rather than `zip -r site.zip site`. If your site needs a build step, "
+    "import the repository from GitHub instead and enable builds."
 )
 
 
@@ -131,16 +146,31 @@ async def verify_served_content_type(store: Store, deployment_id: str) -> None:
         )
 
 
+def quota_message(used: int, incoming: int, limit: int) -> str:
+    """One wording for every quota refusal, wherever it is raised.
+
+    Says the three things the user needs in order to act: how much they are
+    using, what the ceiling is, and that deployments - not only whole projects -
+    can be deleted to get under it. The earlier message offered "delete a
+    project first", which is drastic advice when the fix is usually one stale
+    deployment.
+    """
+    mb = 1024 * 1024
+    return (
+        "Storage quota exceeded. You are using %.1f MB of your %.1f MB limit "
+        "and this deployment needs another %.1f MB. Delete a project, or "
+        "delete old deployments you no longer need - MiniVercel keeps the live "
+        "deployment plus the five most recent working ones per project and "
+        "clears the rest after seven days, so this usually frees itself."
+        % (used / mb, limit / mb, incoming / mb)
+    )
+
+
 async def enforce_quota(used: int, incoming: int, settings: Settings) -> None:
     """NON-NEGOTIABLE #5: the free tier will not warn you before it breaks."""
     if used + incoming <= settings.max_user_bytes:
         return
-    mb = 1024 * 1024
-    raise QuotaExceeded(
-        "Storage quota exceeded: %d MB used of %d MB, and this deployment needs "
-        "%d MB. Delete a project first."
-        % (used // mb, settings.max_user_bytes // mb, incoming // mb)
-    )
+    raise QuotaExceeded(quota_message(used, incoming, settings.max_user_bytes))
 
 
 async def publish(
@@ -184,10 +214,7 @@ async def publish(
 
         if not any(entry.path == "index.html" for entry in entries):
             raise ZipRejected(
-                NO_STATIC_OUTPUT
-                if allow_build_output_dirs
-                else "No index.html at the root of the archive. Zip the *contents* "
-                "of your site folder, not the folder itself."
+                NO_STATIC_OUTPUT if allow_build_output_dirs else NO_INDEX_IN_ZIP
             )
 
         # Quota against the uncompressed total, before a single object is written.
@@ -220,6 +247,12 @@ async def publish(
             ", root=%s" % site_root if site_root else "",
             project["slug"],
         )
+
+        # Render's free plan has no cron (SPEC.md Phase 5), so collection rides
+        # on the event that creates the garbage. Scoped to this project, after
+        # the deployment is live, and unable to fail the deploy.
+        await gc.collect_after_deploy(store, {**project, "live_deployment_id": deployment_id})
+
         return DeployResult(deployment_id, size_bytes, len(paths), site_root)
 
     except Exception:

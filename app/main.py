@@ -15,9 +15,18 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from . import deps
+from . import deps, gc
 from .config import get_settings
-from .routers import deployments, github, health, me, projects, serve, webhooks
+from .routers import (
+    admin,
+    deployments,
+    github,
+    health,
+    me,
+    projects,
+    serve,
+    webhooks,
+)
 from .supabase import SupabaseError
 
 logging.basicConfig(
@@ -39,22 +48,34 @@ async def lifespan(app: FastAPI):
             settings.max_files_per_deployment,
             settings.max_user_bytes // (1024 * 1024),
         )
+
+        # A deployment left `pending` is a worker that died mid-deploy, not a
+        # slow one: Render restarts the dyno on deploy, on spin-down and on OOM
+        # (AUTODEPLOY.md section 6). Left alone the row shows "Building" for
+        # ever and the dashboard polls it until the tab is closed. Nothing is
+        # retried - those deployments never went live, so the previous one is
+        # still serving.
+        #
+        # This used to sit in the `else` branch below, where it ran only when
+        # Supabase was NOT configured - i.e. only when it could not possibly
+        # work. Startup is also not enough on its own, because the process that
+        # died is usually the one that just restarted *into* this handler with
+        # the row less than ten minutes old; `gc.maybe_reap` therefore also runs
+        # from the project list and detail routes, which is where the stale row
+        # is actually looked at.
+        #
+        # Never fatal: startup housekeeping must not stop the service booting.
+        await gc.reap_stuck(deps.get_store())
     else:
         log.warning(
             "SUPABASE_URL / SUPABASE_SERVICE_KEY are not set. "
             "/health will answer but nothing else will work."
         )
-        # A deployment left `pending` is a worker that died mid-deploy, not a
-        # slow one: Render restarts the dyno on deploy, spin-down and OOM. Left
-        # alone the row shows an amber dot for ever. Nothing is retried - those
-        # deployments never went live, so the previous one is still serving.
-        try:
-            reaped = await deps.get_store().reap_stuck_pending(10)
-            if reaped:
-                log.warning("marked %d stuck pending deployment(s) failed", reaped)
-        except Exception as exc:
-            # Never let startup housekeeping stop the service from booting.
-            log.warning("could not reap stuck deployments: %s", exc)
+
+    if settings.admin_token:
+        log.info("admin endpoints enabled (POST /api/admin/gc)")
+    else:
+        log.info("ADMIN_TOKEN is not set: POST /api/admin/gc will answer 503")
 
     try:
         yield
@@ -143,6 +164,7 @@ async def upstream_unreachable(request: Request, exc: httpx.HTTPError) -> JSONRe
 # otherwise adding a POST /{slug} to projects later would silently swallow
 # imports and the failure would look like "Unknown project".
 app.include_router(health.router)
+app.include_router(admin.router)
 app.include_router(me.router)
 app.include_router(github.router)
 app.include_router(projects.router)

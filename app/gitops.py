@@ -191,9 +191,27 @@ def render_workflow(
     """The workflow committed to the user's repository.
 
     Deliberately minimal and readable: the user can see exactly what runs in
-    their repo, and it does nothing beyond build, zip, and POST.
+    their repo, and it does nothing beyond build, zip, POST the output, and POST
+    its own log.
+
+    That last step is Phase 5. Before it, a build that failed during
+    `npm run build` produced nothing on our side at all - no deployment row, no
+    error, no clue - because the workflow never reached the upload step. Now the
+    log tail is sent on every run, and when the build died before producing a
+    zip there is no deployment to attach it to, so the runner reports the
+    failure itself and the dashboard has something to show.
+
+    `tail -n 200` runs on the runner as well as on the server: the error is at
+    the end of a build log, and there is no reason to push megabytes of `npm ci`
+    chatter across the network to have it discarded on arrival.
+
+    The template is a RAW f-string. Two consequences to keep in mind when
+    editing it: `{{` and `}}` are literal braces (so GitHub's own `${{{{ ... }}}}`
+    is written with four), and every backslash is passed through verbatim - which
+    is what the shell line continuations, sed's `\( \) \1` and printf's `\n`
+    all require. A non-raw string ate each of those in a different way.
     """
-    return f"""# Managed by MiniVercel. Regenerated whenever builds are re-enabled.
+    return rf"""# Managed by MiniVercel. Regenerated whenever builds are re-enabled.
 # Deploys {slug} from the {output_dir}/ directory on every push to {branch}.
 name: Deploy to MiniVercel
 
@@ -217,37 +235,84 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      # Every step below tees into one log file. The final step ships its tail
+      # to MiniVercel whether the build succeeded or failed.
       - name: Install dependencies
         run: |
+          set -o pipefail
           if [ -f package-lock.json ]; then
-            npm ci --no-audit --no-fund
+            npm ci --no-audit --no-fund 2>&1 | tee -a "$RUNNER_TEMP/minivercel.log"
           else
-            npm install --no-audit --no-fund
+            npm install --no-audit --no-fund 2>&1 | tee -a "$RUNNER_TEMP/minivercel.log"
           fi
 
       - name: Build
-        run: {build_command}
+        run: |
+          set -o pipefail
+          {build_command} 2>&1 | tee -a "$RUNNER_TEMP/minivercel.log"
 
       - name: Package {output_dir}
         run: |
+          set -o pipefail
           if [ ! -f "{output_dir}/index.html" ]; then
+            echo "No index.html in {output_dir}/ after the build. Check that your build command writes there." | tee -a "$RUNNER_TEMP/minivercel.log"
             echo "::error::No index.html in {output_dir}/ after the build."
             exit 1
           fi
           cd "{output_dir}" && zip -qr "$RUNNER_TEMP/site.zip" .
 
       - name: Upload to MiniVercel
+        id: upload
         env:
           DEPLOY_TOKEN: ${{{{ secrets.{SECRET_NAME} }}}}
         run: |
+          set -o pipefail
           if [ -z "$DEPLOY_TOKEN" ]; then
             echo "::error::{SECRET_NAME} is not set. Re-enable builds in MiniVercel."
             exit 1
           fi
-          curl -f -sS -X POST "{api_base_url}/api/deployments" \\
-            -H "Authorization: Bearer $DEPLOY_TOKEN" \\
-            -H "X-Commit-Sha: ${{{{ github.sha }}}}" \\
-            -F "file=@$RUNNER_TEMP/site.zip"
+          response=$(curl -f -sS -X POST "{api_base_url}/api/deployments" -H "Authorization: Bearer $DEPLOY_TOKEN" -H "X-Commit-Sha: ${{{{ github.sha }}}}" -F "file=@$RUNNER_TEMP/site.zip")
+          printf '%s\n' "$response" | head -c 2000 | tee -a "$RUNNER_TEMP/minivercel.log"
+          # jq is preinstalled on GitHub-hosted runners. The fallback splits on
+          # commas first so that a greedy `.*` cannot run past the deployment's
+          # own "id" and pick up the nested project's instead.
+          deployment_id=$(printf '%s' "$response" | jq -r '.id // empty' 2>/dev/null || true)
+          if [ -z "$deployment_id" ]; then
+            deployment_id=$(printf '%s' "$response" | tr ',' '\n' | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([0-9a-fA-F-]\{{36\}}\)".*/\1/p' | head -n 1)
+          fi
+          echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
+
+      # `always()`: a build log matters most precisely when the steps above
+      # failed. `|| true` and the early exits: losing a log must never turn a
+      # successful deploy into a red run.
+      - name: Send build log to MiniVercel
+        if: always()
+        env:
+          DEPLOY_TOKEN: ${{{{ secrets.{SECRET_NAME} }}}}
+          DEPLOYMENT_ID: ${{{{ steps.upload.outputs.deployment_id }}}}
+          UPLOAD_OUTCOME: ${{{{ steps.upload.outcome }}}}
+        run: |
+          if [ -z "$DEPLOY_TOKEN" ]; then
+            exit 0
+          fi
+          if [ ! -f "$RUNNER_TEMP/minivercel.log" ]; then
+            echo "The workflow produced no output before it failed." > "$RUNNER_TEMP/minivercel.log"
+          fi
+          tail -n 200 "$RUNNER_TEMP/minivercel.log" > "$RUNNER_TEMP/minivercel.tail"
+          if [ -n "$DEPLOYMENT_ID" ]; then
+            target="{api_base_url}/api/deployments/$DEPLOYMENT_ID/logs"
+          elif [ "$UPLOAD_OUTCOME" = "success" ]; then
+            # The deploy worked; only the id could not be read back. Reporting a
+            # build failure here would put a red row against a live deployment.
+            echo "Deployed, but the deployment id could not be parsed; skipping log upload."
+            exit 0
+          else
+            # The build never reached the upload step, so there is no deployment
+            # row anywhere. Create one, carrying this log, or the failed push is
+            # invisible in the dashboard.
+            target="{api_base_url}/api/deployments/build-failed"
+          fi
+          curl -sS -X POST "$target" -H "Authorization: Bearer $DEPLOY_TOKEN" -H "Content-Type: text/plain; charset=utf-8" -H "X-Commit-Sha: ${{{{ github.sha }}}}" --data-binary "@$RUNNER_TEMP/minivercel.tail" || true
 """
 
 

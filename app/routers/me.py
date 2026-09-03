@@ -13,6 +13,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
+from .. import gc
 from ..auth import User, require_user
 from ..config import Settings, get_settings
 from ..crypto import EncryptionUnavailable, encrypt
@@ -34,6 +35,17 @@ async def read_me(
     user: User = Depends(require_user), settings: Settings = Depends(get_settings)
 ):
     store = get_store()
+    # AUTODEPLOY.md section 6: a `pending` row left by a dead worker still
+    # counts its (usually zero) bytes and, more importantly, keeps the
+    # dashboard showing a deploy that will never finish. Throttled; see
+    # gc.maybe_reap.
+    await gc.maybe_reap(store)
+
+    # The live figure, recomputed on every call rather than cached: it is the
+    # number the quota bar draws, and garbage collection moves it downwards
+    # without the browser knowing (SPEC.md Phase 5). Counts every deployment
+    # that is not `failed`, across every project this user owns - a failed
+    # deployment has already had its objects removed.
     used = await store.user_bytes_used(user.id)
     token_row = await store.get_github_token_row(user.id)
 
@@ -43,8 +55,17 @@ async def read_me(
         "usage": {
             "bytes_used": used,
             "bytes_limit": settings.max_user_bytes,
+            "bytes_available": max(settings.max_user_bytes - used, 0),
             "max_deployment_bytes": settings.max_deployment_bytes,
             "max_files_per_deployment": settings.max_files_per_deployment,
+            # What the collector will and will not remove, so the dashboard can
+            # explain the bar instead of only drawing it. `keep_recent_ready`
+            # counts working deployments: a failed one can never be promoted, so
+            # it holds no rollback slot (app/gc.py rule 2).
+            "retention": {
+                "keep_recent_ready": gc.KEEP_RECENT_READY,
+                "max_age_days": gc.MAX_AGE_DAYS,
+            },
         },
         "github": {
             # Never the token itself.

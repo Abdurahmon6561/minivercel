@@ -1,57 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
-import { Button, ErrorBanner, Mono, Panel, Spinner } from "../components/Bits";
+import { Button, ErrorBanner, Panel, Spinner } from "../components/Bits";
+import { DeploymentRow } from "../components/DeploymentRow";
 import { DropZone } from "../components/DropZone";
 import { GitHubPanel } from "../components/GitHubPanel";
-import { StatusDot } from "../components/StatusDot";
-import { api, type Deployment, type Me, type ProjectDetail as Detail } from "../lib/api";
-import { exactTime, formatBytes, shortSha, timeAgo } from "../lib/format";
-
-function DeploymentRow({ deployment, isLive }: { deployment: Deployment; isLive: boolean }) {
-  return (
-    <li className="border-b border-edge px-6 py-4 last:border-0">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-        <div className="w-28 shrink-0">
-          <StatusDot status={deployment.status} />
-        </div>
-
-        <Mono className="min-w-0 flex-1 truncate text-xs text-faint">
-          {deployment.id}
-        </Mono>
-
-        {isLive && (
-          <span className="rounded-full border border-ready/40 px-2 py-0.5 text-[11px] tracking-wide text-ready uppercase">
-            Live
-          </span>
-        )}
-
-        {deployment.commit_sha && (
-          <Mono className="text-xs text-faint" title={deployment.commit_sha}>
-            {shortSha(deployment.commit_sha)}
-          </Mono>
-        )}
-
-        <span className="w-20 shrink-0 text-right font-mono text-xs text-faint">
-          {deployment.status === "ready" ? formatBytes(deployment.size_bytes) : ""}
-        </span>
-        <span className="w-16 shrink-0 text-right font-mono text-xs text-faint">
-          {deployment.status === "ready" ? `${deployment.file_count} files` : ""}
-        </span>
-        <span
-          className="w-32 shrink-0 text-right text-sm text-muted"
-          title={exactTime(deployment.created_at)}
-        >
-          {timeAgo(deployment.created_at)}
-        </span>
-      </div>
-
-      {deployment.error && (
-        <p className="mt-2 text-sm text-failed/80">{deployment.error}</p>
-      )}
-    </li>
-  );
-}
+import { api, type Me, type ProjectDetail as Detail } from "../lib/api";
 
 export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () => void }) {
   const { slug = "" } = useParams();
@@ -115,6 +69,12 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
       setConfirmingDelete(false);
     }
   }
+
+  // Defaults matter only for the first render, before /api/me has answered.
+  const retention = {
+    keep: me?.usage.retention?.keep_recent_ready ?? 5,
+    days: me?.usage.retention?.max_age_days ?? 7,
+  };
 
   if (!project) {
     return (
@@ -211,17 +171,32 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
           Nothing deployed yet.
         </Panel>
       ) : (
-        <Panel>
-          <ul>
-            {project.deployments.map((deployment) => (
-              <DeploymentRow
-                key={deployment.id}
-                deployment={deployment}
-                isLive={deployment.id === project.live_deployment_id}
-              />
-            ))}
-          </ul>
-        </Panel>
+        <>
+          <Panel>
+            <ul>
+              {project.deployments.map((deployment) => (
+                <DeploymentRow
+                  key={deployment.id}
+                  deployment={deployment}
+                  slug={project.slug}
+                  // Promoting changes the live pointer, so both the page and
+                  // the header (which shows the quota) have to catch up.
+                  onPromoted={async () => {
+                    await load();
+                    onChanged();
+                  }}
+                />
+              ))}
+            </ul>
+          </Panel>
+          <p className="mt-3 text-xs text-faint">
+            Every deployment is kept. The live one stays indefinitely, along with
+            the {retention.keep} most recent working deployments you could roll
+            back to; older ones are removed after {retention.days} days. Failed
+            deployments never hold a slot — their files go straight away and the
+            record is kept for {retention.days} days so you can read the error.
+          </p>
+        </>
       )}
     </div>
   );

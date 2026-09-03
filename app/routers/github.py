@@ -36,6 +36,8 @@ from ..github import (
 from ..store import Conflict, slugify
 from ..urls import site_url, webhook_url
 
+from ._errors import as_http
+
 log = logging.getLogger("minivercel.github")
 
 router = APIRouter(tags=["github"])
@@ -44,21 +46,6 @@ router = APIRouter(tags=["github"])
 class ImportRequest(BaseModel):
     repo: str = Field(min_length=3, max_length=140)
     branch: str | None = Field(default=None, max_length=100)
-
-
-def _as_http(exc: Exception) -> HTTPException:
-    if isinstance(exc, GitOpsError):
-        return HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
-    if isinstance(exc, GitHubError):
-        code = (
-            status.HTTP_404_NOT_FOUND
-            if exc.status_code == 404
-            else status.HTTP_401_UNAUTHORIZED
-            if exc.status_code == 401
-            else status.HTTP_502_BAD_GATEWAY
-        )
-        return HTTPException(code, str(exc))
-    return HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Unexpected error.")
 
 
 @router.get("/api/me/github/repos")
@@ -70,11 +57,11 @@ async def list_repos(
     try:
         client = await client_for_user(get_store(), settings, user.id)
     except GitOpsError as exc:
-        raise _as_http(exc) from exc
+        raise as_http(exc) from exc
     try:
         return await client.list_repos()
     except GitHubError as exc:
-        raise _as_http(exc) from exc
+        raise as_http(exc) from exc
     finally:
         await client.aclose()
 
@@ -100,7 +87,7 @@ async def import_repo(
         # on, not a 500.
         client = await client_for_user(store, settings, user.id)
     except (GitOpsError, GitHubError) as exc:
-        raise _as_http(exc) from exc
+        raise as_http(exc) from exc
 
     try:
         repo = await client.get_repo(owner, name)
@@ -162,7 +149,7 @@ async def import_repo(
             webhook_secret=encrypted_secret,
         )
     except (GitOpsError, GitHubError) as exc:
-        raise _as_http(exc) from exc
+        raise as_http(exc) from exc
     finally:
         await client.aclose()
 
@@ -216,7 +203,7 @@ async def enable_project_builds(
     try:
         result = await enable_builds(store, settings, project)
     except (GitOpsError, GitHubError) as exc:
-        raise _as_http(exc) from exc
+        raise as_http(exc) from exc
 
     # Note what is NOT here: the deploy token. It went straight into the repo's
     # Actions secrets and we kept only sha256 of it.
@@ -243,5 +230,5 @@ async def disable_project_builds(
     try:
         await disable_builds(store, settings, project)
     except (GitOpsError, GitHubError) as exc:
-        raise _as_http(exc) from exc
+        raise as_http(exc) from exc
     return {"builds_enabled": False}

@@ -35,6 +35,16 @@ Path resolution (SPEC.md "Serving flow" step 2):
 Existence is answered from the deployment's file manifest, cached in memory and
 immutable for the life of the deployment (see db/002_file_manifest.sql). If the
 manifest column is absent we fall back to HEAD requests against Storage.
+
+Phase 5 adds a second entry point over the same machinery:
+
+    /s/{slug}/_d/{deployment_id}/{path}
+
+which serves any *ready* deployment of that project instead of the live one, so
+a rollback target can be looked at before it is promoted. It is the same
+resolution, the same proxy/redirect split and the same rate limit; only the
+deployment id differs, and the response carries `X-Robots-Tag: noindex` because
+a preview is not the site.
 """
 
 from __future__ import annotations
@@ -250,21 +260,7 @@ def _unavailable() -> PlainTextResponse:
     )
 
 
-@router.get("/s/{slug}")
-async def serve_root_no_slash(slug: str) -> Response:
-    """Send `/s/slug` to `/s/slug/` so relative asset URLs resolve correctly."""
-    return RedirectResponse(
-        "/s/%s/" % slug, status_code=status.HTTP_308_PERMANENT_REDIRECT
-    )
-
-
-@router.get("/s/{slug}/{path:path}")
-async def serve(
-    slug: str,
-    path: str,
-    request: Request,
-    settings: Settings = Depends(get_settings),
-) -> Response:
+def _rate_limit(request: Request) -> None:
     decision = serve_limiter().check(client_ip(request))
     if not decision.allowed:
         raise HTTPException(
@@ -273,22 +269,27 @@ async def serve(
             headers={"Retry-After": str(decision.retry_after)},
         )
 
-    slug = slug.lower()
-    if not is_valid_slug(slug):
-        return _not_found("No such site.")
 
-    try:
-        project = await _load_project(slug)
-    except Unavailable:
-        return _unavailable()
+async def _serve_from(
+    deployment_id: str,
+    path: str,
+    settings: Settings,
+    *,
+    extra_headers: dict[str, str] | None = None,
+) -> Response:
+    """Resolve `path` inside one deployment and answer for it.
 
-    if project is None:
-        return _not_found("No such site.")
+    The live site and a rollback preview differ only in which deployment id
+    arrives here. Everything that could otherwise drift - clean-URL resolution,
+    the 404.html fallback, the proxy/redirect split, the cache headers - is
+    written once, so a preview can never render differently from the site it is
+    a preview of.
 
-    deployment_id = project.get("live_deployment_id")
-    if not deployment_id:
-        return _not_found("This site has no live deployment yet.")
-
+    Takes `Settings` rather than a byte count so that nothing here reads
+    configuration before the path guard below has run - the traversal check must
+    be the first thing that happens to an untrusted path, and a caller that
+    passes `settings.max_proxy_bytes` evaluates that attribute first.
+    """
     # A request path can only ever be appended to a key prefix we own, but
     # normalise anyway so `..` cannot appear in the URL we hand to Supabase.
     if ".." in path.split("/") or path.startswith("/") or "\x00" in path:
@@ -308,18 +309,133 @@ async def serve(
     # HTML: proxy, because a redirect would hand the browser text/plain. The
     # 404.html fallback finally gets to be an actual 404.
     if _must_proxy(key):
-        return await _proxy_html(
+        response = await _proxy_html(
             object_key,
             status.HTTP_404_NOT_FOUND if is_fallback else status.HTTP_200_OK,
             settings.max_proxy_bytes,
         )
+    else:
+        # Everything else: redirect, and never touch the bytes.
+        headers = dict(REDIRECT_HEADERS)
+        if is_fallback:
+            headers["X-MiniVercel-Fallback"] = "404"
+        response = RedirectResponse(
+            get_store().db.public_url(object_key),
+            status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+            headers=headers,
+        )
 
-    # Everything else: redirect, and never touch the bytes.
-    headers = dict(REDIRECT_HEADERS)
-    if is_fallback:
-        headers["X-MiniVercel-Fallback"] = "404"
+    for name, value in (extra_headers or {}).items():
+        response.headers[name] = value
+    return response
+
+
+@router.get("/s/{slug}")
+async def serve_root_no_slash(slug: str) -> Response:
+    """Send `/s/slug` to `/s/slug/` so relative asset URLs resolve correctly."""
     return RedirectResponse(
-        get_store().db.public_url(object_key),
-        status_code=status.HTTP_307_TEMPORARY_REDIRECT,
-        headers=headers,
+        "/s/%s/" % slug, status_code=status.HTTP_308_PERMANENT_REDIRECT
     )
+
+
+# The two preview routes are registered BEFORE the catch-all below, because
+# `/s/{slug}/{path:path}` would otherwise match `_d/...` as an ordinary file
+# path. FastAPI matches in registration order, so this ordering is load-bearing.
+@router.get("/s/{slug}/_d/{deployment_id}")
+async def preview_root_no_slash(slug: str, deployment_id: str) -> Response:
+    return RedirectResponse(
+        "/s/%s/_d/%s/" % (slug, deployment_id),
+        status_code=status.HTTP_308_PERMANENT_REDIRECT,
+    )
+
+
+@router.get("/s/{slug}/_d/{deployment_id}/{path:path}")
+async def serve_preview(
+    slug: str,
+    deployment_id: str,
+    path: str,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+) -> Response:
+    """A past deployment of this project, so it can be seen before promoting.
+
+    Deliberately public, like the live site. A preview URL carries an opaque
+    UUID and serves bytes that were public under the same slug when that
+    deployment was live. Putting auth here would mean the dashboard could not
+    link to it, and would put a session on the origin that serves untrusted user
+    HTML - which SPEC.md non-negotiable #2 forbids outright.
+
+    Two checks that are not optional: the deployment must belong to *this*
+    project (otherwise any slug becomes an oracle for every deployment in the
+    bucket), and it must be `ready` (a pending or failed deployment has partial
+    objects or none, and previewing it would show a broken site).
+    """
+    _rate_limit(request)
+
+    slug = slug.lower()
+    if not is_valid_slug(slug):
+        return _not_found("No such site.")
+
+    try:
+        project = await _load_project(slug)
+    except Unavailable:
+        return _unavailable()
+    if project is None:
+        return _not_found("No such site.")
+
+    try:
+        deployment = await get_store().get_deployment(deployment_id)
+    except Exception as exc:
+        log.warning("preview lookup failed for %s: %s", deployment_id, exc)
+        return _unavailable()
+
+    # Same answer for "no such deployment" and "not this project's deployment":
+    # distinguishing them turns this route into a probe for deployment ids.
+    if deployment is None or deployment.get("project_id") != project["id"]:
+        return _not_found("No such deployment for this site.")
+    if deployment.get("status") != "ready":
+        return _not_found(
+            "That deployment is %s, so there is nothing to preview. Only a "
+            "deployment that finished successfully has files to serve."
+            % (deployment.get("status") or "unknown")
+        )
+
+    return await _serve_from(
+        deployment_id,
+        path,
+        settings,
+        # A preview is the same content at another point in time; indexing it
+        # would compete with the live URL for its own pages.
+        extra_headers={"X-Robots-Tag": "noindex, nofollow"},
+    )
+
+
+@router.get("/s/{slug}/{path:path}")
+async def serve(
+    slug: str,
+    path: str,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+) -> Response:
+    _rate_limit(request)
+
+    slug = slug.lower()
+    if not is_valid_slug(slug):
+        return _not_found("No such site.")
+
+    try:
+        project = await _load_project(slug)
+    except Unavailable:
+        return _unavailable()
+
+    if project is None:
+        return _not_found("No such site.")
+
+    deployment_id = project.get("live_deployment_id")
+    if not deployment_id:
+        return _not_found(
+            "This site has no live deployment yet. Upload a deployment, or "
+            "promote a past one from the dashboard."
+        )
+
+    return await _serve_from(deployment_id, path, settings)

@@ -337,8 +337,14 @@ async def test_import_with_no_static_output_fails_with_a_useful_message(
 
     deployment = supabase.tables["deployments"][0]
     assert deployment["status"] == "failed"
-    assert "No static output found" in deployment["error"]
-    assert "Enable builds" in deployment["error"]
+
+    # Phase 5 "error messages": the failure has to name the directories that
+    # were actually searched and point at the fix, not merely say no.
+    error = deployment["error"]
+    assert "No index.html found" in error
+    for searched in ("dist/", "build/", "public/", "_site/"):
+        assert searched in error, "the message must name every directory tried"
+    assert "enable builds" in error.lower()
     assert supabase.objects == {}
 
 
@@ -643,8 +649,44 @@ def test_rendered_workflow_honours_custom_build_settings():
         slug="s",
     )
     assert "branches: [release]" in workflow
-    assert "run: npm run build:prod" in workflow
+    # The build command now pipes into the log file the Phase 5 log step ships,
+    # so it is no longer the whole of the `run:` line.
+    assert "npm run build:prod 2>&1 | tee -a" in workflow
     assert 'cd "public"' in workflow
+
+    # Phase 5: the log is posted on every run, and a build that never reached
+    # the upload step reports itself so the failure is visible in the dashboard.
+    assert "if: always()" in workflow
+    assert "https://x.example/api/deployments/$DEPLOYMENT_ID/logs" in workflow
+    assert "https://x.example/api/deployments/build-failed" in workflow
+    assert "tail -n 200" in workflow
+
+
+def test_rendered_workflow_is_valid_yaml():
+    """It is committed to a user's repository; a syntax error there is ours.
+
+    The template is an f-string full of `${{ }}` expressions, backslashes and
+    doubled braces, and every one of those is a way to emit YAML that GitHub
+    silently refuses to run.
+    """
+    yaml = pytest.importorskip("yaml")
+    parsed = yaml.safe_load(
+        gitops.render_workflow(
+            branch="main",
+            build_command="npm run build",
+            output_dir="dist",
+            api_base_url="https://x.example",
+            slug="blue-forest-4821",
+        )
+    )
+    steps = parsed["jobs"]["build"]["steps"]
+    assert [step for step in steps if step.get("if") == "always()"], (
+        "the build log step must run even when the build failed"
+    )
+    upload = next(step for step in steps if step.get("id") == "upload")
+    # The response embeds the project, which also has an "id". A greedy match
+    # would take that one and post the log against the wrong row.
+    assert "jq -r '.id // empty'" in upload["run"]
 
 
 @pytest.mark.parametrize(
@@ -773,7 +815,10 @@ async def test_a_404_on_a_hook_call_blames_the_scope_not_the_repository(
     response = await client.post(
         "/api/projects/import", headers=auth_headers(), json={"repo": REPO}
     )
-    assert response.status_code == 404
+    # Phase 5 "error messages": a missing scope is a permission problem, so it
+    # is reported as 403 even though GitHub expressed it as 404. Forwarding the
+    # 404 told the user their repository was gone when it was sitting there.
+    assert response.status_code == 403
     detail = response.json()["detail"]
     assert "admin:repo_hook" in detail
     assert "private" not in detail.lower(), "the old, misleading advice"

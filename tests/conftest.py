@@ -26,7 +26,7 @@ import httpx  # noqa: E402
 import jwt  # noqa: E402
 import pytest  # noqa: E402
 
-from app import cache, deps  # noqa: E402
+from app import cache, deps, gc  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.main import app  # noqa: E402
 from app.store import Store  # noqa: E402
@@ -90,6 +90,10 @@ def wired(supabase: FakeSupabase):
     """Point the app at the in-memory backend and reset all process state."""
     cache.clear_all()
     deps.reset_limiters()
+    # gc._last_reap is process-global, so without this the first test to poll a
+    # project list would suppress the reaper for every test that follows it in
+    # the same minute - a real ordering dependency, not a theoretical one.
+    gc.reset_reap_throttle()
     deps.set_store(Store(supabase))
     yield supabase
     deps.set_store(None)

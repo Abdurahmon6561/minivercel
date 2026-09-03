@@ -27,6 +27,8 @@ services:
         sync: false          # https://<your-dashboard>.vercel.app
       - key: GITHUB_TOKEN_KEY
         generateValue: true  # Fernet key for GitHub provider tokens
+      - key: ADMIN_TOKEN
+        generateValue: true  # guards POST /api/admin/gc; blank disables it
       - key: MAX_DEPLOYMENT_BYTES
         value: "52428800"
       - key: MAX_FILES_PER_DEPLOYMENT

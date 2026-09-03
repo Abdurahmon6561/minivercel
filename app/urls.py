@@ -23,6 +23,16 @@ def site_url(settings: Settings, slug: str) -> str:
     return "%s/s/%s/" % (settings.public_base_url, slug)
 
 
+def preview_url(settings: Settings, slug: str, deployment_id: str) -> str:
+    """Where a past deployment can be looked at before it is promoted.
+
+    Built from `site_url` rather than assembled separately, so it follows the
+    slug onto subdomains whenever URL_MODE changes and never becomes the one
+    hard-coded `/s/` left behind.
+    """
+    return "%s_d/%s/" % (site_url(settings, slug), deployment_id)
+
+
 def webhook_url(settings: Settings) -> str:
     """Where GitHub delivers push events.
 

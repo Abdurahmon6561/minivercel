@@ -10,6 +10,7 @@ from a request and skips that filter.
 
 from __future__ import annotations
 
+import logging
 import re
 import secrets
 import unicodedata
@@ -18,6 +19,8 @@ from typing import Any
 
 from .naming import generate_slug, is_reserved
 from .supabase import SupabaseClient, SupabaseError
+
+log = logging.getLogger("minivercel.store")
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$")
 _NON_SLUG = re.compile(r"[^a-z0-9]+")
@@ -38,6 +41,15 @@ PROJECT_COLUMNS = (
 DEPLOYMENT_COLUMNS = (
     "id,project_id,status,size_bytes,file_count,error,commit_sha,created_at"
 )
+#: `build_log_at` is selected alongside the columns above so a list can say
+#: whether a log exists without carrying every log. `build_log` itself is only
+#: ever fetched one deployment at a time.
+DEPLOYMENT_COLUMNS_WITH_LOG = DEPLOYMENT_COLUMNS + ",build_log_at"
+
+# The tail is what matters: a build fails at the end. 200 lines is SPEC-stated;
+# the byte cap is the backstop for a single line of minified nonsense.
+BUILD_LOG_MAX_LINES = 200
+BUILD_LOG_MAX_BYTES = 64 * 1024
 
 
 class Conflict(Exception):
@@ -70,9 +82,31 @@ def is_valid_slug(slug: str) -> bool:
     return bool(SLUG_RE.match(slug)) and not is_reserved(slug)
 
 
+def truncate_build_log(text: str) -> str:
+    """Keep the tail: the last BUILD_LOG_MAX_LINES lines, then a byte cap.
+
+    A build fails at the end, so the head of the log is the part nobody needs.
+    The byte cap runs second because 200 lines of minified bundler output can
+    still be megabytes, and this column lives in a 500 MB database.
+    """
+    normalised = text.replace("\r\n", "\n").replace("\r", "\n")
+    tail = "\n".join(normalised.split("\n")[-BUILD_LOG_MAX_LINES:]).strip("\n")
+
+    encoded = tail.encode("utf-8", "replace")
+    if len(encoded) <= BUILD_LOG_MAX_BYTES:
+        return tail
+    # Cut from the front and let the decoder drop a partial leading character.
+    clipped = encoded[-BUILD_LOG_MAX_BYTES:].decode("utf-8", "ignore")
+    return "[log truncated]\n" + clipped
+
+
 class Store:
     def __init__(self, client: SupabaseClient) -> None:
         self.db = client
+        #: Set false the first time PostgREST rejects `build_log_at`, i.e. when
+        #: db/006_phase5.sql has not been applied. Everything else keeps
+        #: working; only build logs are unavailable.
+        self._supports_build_log = True
 
     # -- projects ----------------------------------------------------------
 
@@ -177,15 +211,100 @@ class Store:
         return rows[0] if rows else None
 
     async def list_deployments(self, project_id: str, limit: int = 50) -> list[dict]:
+        """Newest first. Carries `build_log_at`, never `build_log` itself.
+
+        The dashboard needs to know *whether* a deployment has a log in order to
+        render a collapsed disclosure; it fetches the text only when someone
+        opens one. Selecting `build_log` here would put fifty build logs on the
+        wire to render fifty triangles.
+        """
+        params = {
+            "project_id": "eq." + project_id,
+            "order": "created_at.desc,id.desc",
+            "limit": str(limit),
+        }
+        if self._supports_build_log:
+            try:
+                return await self.db.select(
+                    "deployments", {**params, "select": DEPLOYMENT_COLUMNS_WITH_LOG}
+                )
+            except SupabaseError:
+                # db/006_phase5.sql not applied. Say so once, then stop asking.
+                self._supports_build_log = False
+                log.warning(
+                    "deployments.build_log_at is missing; build logs are "
+                    "disabled until db/006_phase5.sql is applied"
+                )
         return await self.db.select(
-            "deployments",
-            {
-                "select": DEPLOYMENT_COLUMNS,
-                "project_id": "eq." + project_id,
-                "order": "created_at.desc,id.desc",
-                "limit": str(limit),
-            },
+            "deployments", {**params, "select": DEPLOYMENT_COLUMNS}
         )
+
+    async def delete_deployment(self, deployment_id: str) -> None:
+        """Remove one deployment row.
+
+        Storage objects are NOT touched here and must already be gone: Postgres
+        knows nothing about the bucket, so a row deleted first is a set of keys
+        nobody can ever enumerate again (AUTODEPLOY.md section 7). Every caller
+        deletes objects first - see app/gc.py.
+        """
+        await self.db.delete("deployments", {"id": "eq." + deployment_id})
+
+    async def set_build_log(self, deployment_id: str, text: str) -> bool:
+        """Attach the tail of a build log. False if the column does not exist."""
+        if not self._supports_build_log:
+            return False
+        try:
+            await self.db.update(
+                "deployments",
+                {"id": "eq." + deployment_id},
+                {"build_log": truncate_build_log(text), "build_log_at": _now_iso()},
+            )
+        except SupabaseError:
+            self._supports_build_log = False
+            log.warning(
+                "could not store a build log; apply db/006_phase5.sql to enable them"
+            )
+            return False
+        return True
+
+    async def get_build_log(self, deployment_id: str) -> dict | None:
+        """The stored log for one deployment, or None if there is none."""
+        if not self._supports_build_log:
+            return None
+        try:
+            rows = await self.db.select(
+                "deployments",
+                {
+                    "select": "id,build_log,build_log_at",
+                    "id": "eq." + deployment_id,
+                    "limit": "1",
+                },
+            )
+        except SupabaseError:
+            self._supports_build_log = False
+            return None
+        if not rows or not rows[0].get("build_log"):
+            return None
+        return rows[0]
+
+    async def create_failed_deployment(
+        self, project_id: str, *, commit_sha: str | None, error: str
+    ) -> dict:
+        """A deployment that failed before it ever reached us.
+
+        A GitHub Actions build that dies during `npm run build` never POSTs a
+        zip, so without this there is no row - and the dashboard shows the last
+        successful deploy as if nothing had happened. The row owns no storage
+        objects and, being `failed`, counts nothing against the quota.
+        """
+        row: dict[str, Any] = {
+            "project_id": project_id,
+            "status": "failed",
+            "error": error[:500],
+        }
+        if commit_sha:
+            row["commit_sha"] = commit_sha[:64]
+        return await self.db.insert("deployments", row)
 
     async def mark_deployment_ready(
         self, deployment_id: str, *, size_bytes: int, file_count: int, file_paths: list[str]
@@ -227,17 +346,28 @@ class Store:
         latest: dict[str, dict] = {}
         for start in range(0, len(project_ids), PROJECT_ID_BATCH):
             batch = project_ids[start : start + PROJECT_ID_BATCH]
-            rows = await self.db.select(
-                "deployments",
-                {
-                    "select": DEPLOYMENT_COLUMNS,
-                    "project_id": "in.(%s)" % ",".join(batch),
-                    # id breaks a created_at tie, so "newest" is never decided
-                    # by row order coming back from PostgREST.
-                    "order": "created_at.desc,id.desc",
-                    "limit": str(MAX_DEPLOYMENTS_SCANNED),
-                },
-            )
+            params = {
+                "project_id": "in.(%s)" % ",".join(batch),
+                # id breaks a created_at tie, so "newest" is never decided
+                # by row order coming back from PostgREST.
+                "order": "created_at.desc,id.desc",
+                "limit": str(MAX_DEPLOYMENTS_SCANNED),
+            }
+            # Same columns as list_deployments, including `build_log_at`, so
+            # `has_build_log` means the same thing on the project list as it
+            # does on the project page rather than being silently false there.
+            rows = None
+            if self._supports_build_log:
+                try:
+                    rows = await self.db.select(
+                        "deployments", {**params, "select": DEPLOYMENT_COLUMNS_WITH_LOG}
+                    )
+                except SupabaseError:
+                    self._supports_build_log = False
+            if rows is None:
+                rows = await self.db.select(
+                    "deployments", {**params, "select": DEPLOYMENT_COLUMNS}
+                )
             for row in rows:
                 latest.setdefault(row["project_id"], row)
         return latest
@@ -258,6 +388,23 @@ class Store:
             {"status": "failed", "error": "worker restarted"},
         )
         return len(rows)
+
+    async def all_projects(self, limit: int = MAX_PROJECTS) -> list[dict]:
+        """Every project, for the garbage-collection sweep.
+
+        The only function here that is deliberately not scoped to an owner. It
+        is reachable from exactly one place - the ADMIN_TOKEN-guarded sweep in
+        app/routers/admin.py - and it returns rows for deletion accounting, not
+        for any response body.
+        """
+        return await self.db.select(
+            "projects",
+            {
+                "select": "id,slug,owner_id,live_deployment_id",
+                "order": "created_at.asc",
+                "limit": str(limit),
+            },
+        )
 
     # -- github integration -------------------------------------------------
 

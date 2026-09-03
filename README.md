@@ -1,4 +1,4 @@
-# MiniVercel — Phase 1
+# MiniVercel
 
 Upload a zip of static files, get a public URL.
 
@@ -67,10 +67,13 @@ Two rules explain most of the design:
 | [app/deploytoken.py](app/deploytoken.py) | Per-project deploy tokens. Stored as sha256, never in the clear. |
 | [app/routers/webhooks.py](app/routers/webhooks.py) | `POST /api/webhooks/github`: verify, then 202 and deploy in the background. |
 | [app/routers/me.py](app/routers/me.py) | `/api/me`: identity, quota, and the encrypted GitHub token. |
+| [app/gc.py](app/gc.py) | Retention rules, the storage-before-row deletion order, and the stuck-`pending` reaper. |
+| [app/routers/admin.py](app/routers/admin.py) | `POST /api/admin/gc`, behind `ADMIN_TOKEN`. |
+| [app/routers/_errors.py](app/routers/_errors.py) | The one GitHub-error-to-HTTP-status mapping. |
 | [app/crypto.py](app/crypto.py) | Fernet wrapper for the one secret we must store and read back. |
 | [web/](web/) | Phase 2 dashboard: React + Vite + Tailwind, deployed on Vercel. |
 | [scripts/smoke.sh](scripts/smoke.sh) | The Phase 1 curl deliverable, end to end. |
-| [tests/](tests/) | 315 tests, no network required. |
+| [tests/](tests/) | 387 tests, no network required. |
 
 ---
 
@@ -111,7 +114,14 @@ SUPABASE_JWT_SECRET   <JWT secret, or blank for JWKS>
 PUBLIC_BASE_URL       https://<service>.onrender.com
 CORS_ORIGINS          https://<dashboard>.vercel.app
 GITHUB_TOKEN_KEY      <Fernet key>
+ADMIN_TOKEN           <random secret, or blank to disable /api/admin/gc>
 ```
+
+`ADMIN_TOKEN` is new in Phase 5 and is the only variable that has to be added to
+an existing deployment. `render.yaml` generates one; if you set it by hand, use
+`python -c "import secrets; print(secrets.token_urlsafe(32))"`. Leaving it blank
+is safe — `POST /api/admin/gc` then answers 503 and garbage collection still
+runs after every successful deploy.
 
 `PUBLIC_BASE_URL` is load-bearing from Phase 3 on: it is the URL registered as
 the GitHub webhook and baked into the committed workflow file. Changing it means
@@ -279,8 +289,127 @@ is a zip of static output.
 A failed deploy never changes `live_deployment_id`: a broken push leaves the
 previous version serving.
 
+## Rollback, garbage collection and build logs (Phase 5)
+
+### Every deployment is kept, and any of them can be made live again
+
+A deploy no longer replaces what came before it. Each deployment keeps its own
+key prefix in Storage, so a past one can be looked at without disturbing the
+site:
+
+```
+https://<service>.onrender.com/s/<slug>/_d/<deployment-id>/
+```
+
+That URL is public, like the site itself, and carries `X-Robots-Tag: noindex`.
+It resolves clean URLs, serves `404.html` and redirects assets exactly as the
+live route does — it is the same code with a different deployment id — so a
+preview cannot render differently from the site it is a preview of. It refuses
+a deployment belonging to another project, and refuses one that is not `ready`.
+
+Promotion is a pointer move:
+
+```
+POST /api/projects/{slug}/deployments/{id}/promote
+```
+
+It sets `projects.live_deployment_id` and touches no storage at all, which is
+what makes it instant and free. It is refused if the deployment is not `ready`
+(promoting a half-uploaded deployment would replace a working site with a broken
+one) or belongs to another project (answered 404, not 403, so the route cannot be
+used to discover deployment ids). Promoting what is already live is a no-op, not
+an error. In the dashboard each row gets **Preview** and **Promote to live**,
+with a confirmation step; the live row shows the LIVE badge instead.
+
+### Garbage collection
+
+Retention, applied per project:
+
+1. the live deployment is kept for ever, whatever its age;
+2. the **5 most recent *ready* non-live** deployments are kept, whatever their
+   age — this is what leaves something to roll back *to*;
+3. any other ready deployment is deleted once it is more than **7 days** old;
+4. a **failed** deployment loses its storage objects immediately and its row
+   after 7 days;
+5. a **pending** deployment is never touched.
+
+Rule 2 counts *ready* deployments deliberately. A failed deployment can never be
+promoted, so if failures held rollback slots, a project with five failures from
+this morning and one working version from last week would spend every slot on
+rows nobody can roll back to and then collect the only version that still works.
+
+Rule 4 is the other half of that. A failed deployment is never served, so any
+objects a partial upload left behind are pure waste against the 1 GB.
+`deployer.fail` already removes them on the normal path; what it cannot cover is
+a worker killed mid-upload, which leaves objects with nothing to clean them and a
+row the reaper only later marks failed. So the sweep removes a failed
+deployment's objects on sight and keeps the row for seven days, because that row
+is the error message the user is reading.
+
+Rule 5 exists because a `pending` deployment may be uploading *right now*, and
+deleting its objects would truncate a deploy in flight. A dead one becomes
+`failed` within ten minutes and is then covered by rule 4.
+
+**Storage objects are deleted first, then the row.** That order is the whole
+point. Postgres knows nothing about the bucket, so `ON DELETE CASCADE` does not
+reach it (AUTODEPLOY.md section 7); a row deleted first leaves a set of object
+keys nobody can enumerate again, and those bytes are unreclaimable short of
+listing the entire bucket by hand. If the storage delete fails, the row is
+deliberately left in place so the next sweep can retry.
+
+Render's free plan has no cron, so collection runs in two places:
+
+* **after every successful deploy**, scoped to the project that just deployed —
+  which is also the only project whose deployment list just changed. It cannot
+  fail a deploy: every error is swallowed and logged.
+* **`POST /api/admin/gc`**, a full sweep, guarded by `ADMIN_TOKEN` and compared
+  with `hmac.compare_digest`. Useful for projects that stopped deploying, which
+  nothing else will ever collect. Any external scheduler can call it — a
+  HetrixTools monitor or a GitHub Actions cron reaches it as easily as `/health`.
+
+Bytes reclaimed and objects removed are logged on every run and returned by the
+admin endpoint. The two are reported separately because a failed deployment's
+`size_bytes` is 0 — it never reached `mark_deployment_ready` — so objects swept
+from a partial upload show up as a count and cannot show up as bytes.
+`GET /api/me` reports live `usage.bytes_used`, recomputed per call, so the quota
+bar falls as soon as a sweep frees space.
+
+### Build logs
+
+The committed workflow tees every step into one file and, in a final
+`if: always()` step, ships its last 200 lines:
+
+```
+POST /api/deployments/{id}/logs          # attach to a deployment
+POST /api/deployments/build-failed       # the build never produced a zip
+GET  /api/deployments/{id}/logs          # owner only, read it back
+```
+
+It authenticates with the same per-project deploy token the upload uses — no new
+credential and no new scope. The second endpoint exists because a build that
+dies during `npm run build` never reaches the upload step, so before Phase 5 it
+produced no deployment row at all and the dashboard went on showing the previous
+successful deploy. It accepts a deploy token only; a browser has no business
+inventing a failed deployment.
+
+Logs are truncated to the last 200 lines and 64 KB — a build fails at the end —
+stored as text, and never interpreted. The dashboard shows the panel collapsed
+and fetches the text only when it is opened, so listing fifty deployments does
+not drag fifty logs across the wire.
+
+### Stuck deployments
+
+A deployment `pending` for more than ten minutes is a worker that died
+mid-deploy, not a slow one (AUTODEPLOY.md section 6). It is marked `failed` with
+the reason `worker restarted`, at startup, on the admin sweep, and — throttled to
+once a minute per process — from the project list and detail routes, which is
+where the dashboard is actually polling it.
+
+---
+
 ## Not built yet
 
-Phase 5 — garbage collection of old deployments, rollback, build logs, custom
-domains — is untouched. GC matters soonest: with 1 GB of storage and no
-collection, deployments accumulate until the 100 MB per-user quota stops them.
+Custom domains and subdomain serving. Both need a domain, a wildcard
+certificate and a proxy layer in front (SPEC.md Phase 5, AUTODEPLOY.md section
+1); `URL_MODE` and `app/urls.py` are already shaped for the switch, and nothing
+else changes.

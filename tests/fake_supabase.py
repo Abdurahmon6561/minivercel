@@ -54,9 +54,12 @@ class _FakeStream:
 
 
 class FakeSupabase:
-    def __init__(self, *, supports_manifest: bool = True) -> None:
+    def __init__(
+        self, *, supports_manifest: bool = True, supports_build_log: bool = True
+    ) -> None:
         self.bucket = "sites"
         self.supports_manifest = supports_manifest
+        self.supports_build_log = supports_build_log
         self.tables: dict[str, list[dict]] = {
             "projects": [],
             "deployments": [],
@@ -113,6 +116,9 @@ class FakeSupabase:
                 300,
             )
 
+        if not self.supports_build_log and "build_log" in str(params.get("select", "")):
+            raise SupabaseError("column deployments.build_log does not exist", 400)
+
         for key, predicate in params.items():
             if key in reserved:
                 continue
@@ -166,6 +172,12 @@ class FakeSupabase:
             record.setdefault("error", None)
             record.setdefault("commit_sha", None)
             record.setdefault("file_paths", None)
+            # db/006_phase5.sql. Present by default so the Phase 5 log paths are
+            # exercised; a fake constructed with supports_build_log=False models
+            # a server where the migration has not been applied.
+            if self.supports_build_log:
+                record.setdefault("build_log", None)
+                record.setdefault("build_log_at", None)
 
         self.tables[table].append(record)
         return dict(record)
@@ -180,6 +192,8 @@ class FakeSupabase:
     async def update(self, table: str, params: dict, patch: dict) -> list[dict]:
         if not self.supports_manifest and "file_paths" in patch:
             raise SupabaseError("column deployments.file_paths does not exist", 400)
+        if not self.supports_build_log and "build_log" in patch:
+            raise SupabaseError("column deployments.build_log does not exist", 400)
 
         updated = []
         for row in self.tables[table]:
@@ -251,6 +265,16 @@ class FakeSupabase:
             )
         self.streams.append(stream)
         return stream
+
+    async def stored_content_type(self, key: str) -> str | None:
+        """What the read-back check in deployer.py asks for after every deploy.
+
+        Returns what we stored, i.e. a Storage that did NOT downgrade the type.
+        Supabase's real public URL does downgrade HTML to text/plain - that is
+        modelled in `open_object_stream`, which is the path the proxy uses.
+        """
+        entry = self.objects.get(key)
+        return entry[1] if entry else None
 
     async def object_exists(self, key: str) -> bool:
         return key in self.objects

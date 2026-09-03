@@ -96,9 +96,20 @@ CHUNK = 64 * 1024
 class GitHubError(RuntimeError):
     """A GitHub call failed. The message is safe to show the user."""
 
-    def __init__(self, message: str, status_code: int | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        status_code: int | None = None,
+        *,
+        scope_hint: str | None = None,
+    ) -> None:
         super().__init__(message)
         self.status_code = status_code
+        #: The OAuth scope this call needed, when the failure looks like a
+        #: missing one. Set here so `routers/_errors.py` can answer 403 - the
+        #: honest status - instead of forwarding GitHub's misleading 404 or a
+        #: blanket 502. None means the failure was not about permissions.
+        self.scope_hint = scope_hint
 
 
 @dataclass(frozen=True)
@@ -183,23 +194,46 @@ class GitHubClient:
         except ValueError:
             message = response.text[:200]
 
+        needed = SCOPE_FOR_CALL.get(what)
+        scope_hint = None
+
         if response.status_code == 401:
             message = "GitHub rejected the stored token. Reconnect GitHub and try again."
         elif response.status_code == 403 and "rate limit" in message.lower():
             message = "GitHub API rate limit reached. Try again shortly."
+        elif response.status_code == 403:
+            # A real 403: the resource exists and this token may not touch it.
+            # If we know which scope the call needs, that is almost always why.
+            if needed:
+                scope_hint = needed
+                message = (
+                    "GitHub refused this call. The sign-in is missing the `%s` "
+                    "scope, which is required to %s. Sign out and sign in again "
+                    "to re-authorise with the wider scope. (If you run this "
+                    "dashboard yourself, set VITE_GITHUB_SCOPES to "
+                    "`repo,workflow` and redeploy it.)" % (needed, what)
+                )
+            else:
+                message = (
+                    "GitHub refused this call: %s. You may not have admin access "
+                    "to this repository." % message
+                )
         elif response.status_code == 404:
             # GitHub returns 404 rather than 403 when a token lacks a scope, so
             # this one status covers both "does not exist" and "not allowed".
             # Naming the scope the *specific* call needs beats a blanket guess:
             # telling someone to add `repo` when the real problem is `workflow`
             # sends them round the loop a second time.
-            needed = SCOPE_FOR_CALL.get(what)
             if needed:
+                scope_hint = needed
                 message = (
-                    "GitHub returned 404 for this call. That usually means the "
-                    "sign-in is missing the `%s` scope rather than that the "
+                    "GitHub returned 404 for this call. That almost always means "
+                    "the sign-in is missing the `%s` scope rather than that the "
                     "repository is gone - GitHub reports a missing scope as 404. "
-                    "Sign out and sign in again to re-authorise." % needed
+                    "Sign out and sign in again to re-authorise with the wider "
+                    "scope. (If you run this dashboard yourself, set "
+                    "VITE_GITHUB_SCOPES to `repo,workflow` and redeploy it.)"
+                    % needed
                 )
             else:
                 message = (
@@ -209,7 +243,7 @@ class GitHubClient:
                 )
 
         log.warning("%s failed: %s %s", what, response.status_code, message)
-        raise GitHubError(message, response.status_code)
+        raise GitHubError(message, response.status_code, scope_hint=scope_hint)
 
     # -- repositories ------------------------------------------------------
 
