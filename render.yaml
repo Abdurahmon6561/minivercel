@@ -10,6 +10,9 @@ services:
     plan: free
     region: oregon
     dockerfilePath: ./Dockerfile
+    # app/hostrouting.py answers this path regardless of the Host header
+    # Render's checker sends, so it keeps working across the URL_MODE=path ->
+    # subdomain cutover without a separate health-check domain.
     healthCheckPath: /health
     autoDeployTrigger: commit
     envVars:
@@ -22,9 +25,15 @@ services:
       - key: SUPABASE_BUCKET
         value: sites
       - key: PUBLIC_BASE_URL
-        sync: false          # https://<your-service>.onrender.com
+        sync: false          # https://<your-service>.onrender.com, or https://api.getdropbin.xyz
+      - key: URL_MODE
+        value: path           # set to "subdomain" for the getdropbin.xyz wildcard setup
+      - key: SITE_DOMAIN
+        sync: false           # e.g. getdropbin.xyz; only read when URL_MODE=subdomain
+      - key: DASHBOARD_DIST_DIR
+        value: /app/web-dist   # matches the Dockerfile's webbuild stage; unused in path mode
       - key: CORS_ORIGINS
-        sync: false          # https://<your-dashboard>.vercel.app
+        sync: false          # e.g. https://app.getdropbin.xyz,http://localhost:5173
       - key: GITHUB_TOKEN_KEY
         generateValue: true  # Fernet key for GitHub provider tokens
       - key: ADMIN_TOKEN

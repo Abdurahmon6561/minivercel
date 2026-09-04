@@ -349,6 +349,36 @@ class GitHubClient:
             return  # already gone; deleting is idempotent
         self._check(response, "delete webhook")
 
+    async def update_webhook_url(
+        self, owner: str, name: str, hook_id: int, url: str, secret: str
+    ) -> None:
+        """Point an existing webhook at a new delivery URL, same secret.
+
+        Used by scripts/reimport_all.py after a PUBLIC_BASE_URL change (the
+        getdropbin.xyz migration): only `config.url` is meant to move. GitHub's
+        documented behaviour for this call is "send the whole config object,
+        every time" - the same shape `create_push_webhook` sends - so `secret`
+        is passed on every call rather than assumed to survive an update that
+        does not mention it. Getting this wrong is not cosmetic: a webhook
+        whose secret silently changed would fail every future signature
+        check in app/routers/webhooks.py and auto-deploy would go quiet with
+        no error anywhere obvious.
+        """
+        self._check(
+            await self._client.patch(
+                "/repos/%s/%s/hooks/%s" % (owner, name, hook_id),
+                json={
+                    "config": {
+                        "url": url,
+                        "content_type": "json",
+                        "secret": secret,
+                        "insecure_ssl": "0",
+                    }
+                },
+            ),
+            "update webhook",
+        )
+
     # -- contents (workflow file) ------------------------------------------
 
     async def get_file_sha(self, owner: str, name: str, path: str, ref: str) -> str | None:

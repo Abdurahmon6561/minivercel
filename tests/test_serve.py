@@ -144,6 +144,7 @@ async def test_literal_traversal_is_refused(client):
     """
     from starlette.requests import Request
 
+    from app.config import get_settings
     from app.routers.serve import serve
 
     await deployed(client)
@@ -157,7 +158,9 @@ async def test_literal_traversal_is_refused(client):
             "client": ("203.0.113.7", 1234),
         }
     )
-    response = await serve("demo", "../secret", request)
+    # Called directly rather than through FastAPI, so - unlike a real request -
+    # Depends(get_settings) is not resolved for us; pass the real thing.
+    response = await serve("demo", "../secret", request, get_settings())
     assert response.status_code == 404
     assert "location" not in response.headers
 

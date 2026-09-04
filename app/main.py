@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 
 from . import deps, gc
 from .config import get_settings
+from .hostrouting import HostRoutingMiddleware
 from .routers import (
     admin,
     deployments,
@@ -88,6 +89,23 @@ app = FastAPI(
     description="Upload a zip of static files, get a public URL.",
     version="1.0.0",
     lifespan=lifespan,
+)
+
+# Added before CORSMiddleware below, which - per the comment on that call -
+# must stay the outermost layer: `add_middleware` makes the LAST call here the
+# outermost one, so this line has to come first in the source, not the CORS
+# block. In URL_MODE=path (the default, and what every test in this suite
+# runs under) this middleware is a no-op passthrough; see app/hostrouting.py.
+#
+# `get_settings` is looked up through `app.dependency_overrides` on every call
+# rather than passed as the bare function, so that this middleware - which
+# runs outside FastAPI's routing and therefore outside its dependency
+# injection - still honours a `dependency_overrides[get_settings]` swap the
+# same way `Depends(get_settings)` does in every route. Tests override
+# Settings exactly that way (conftest.py's `override_settings` fixture).
+app.add_middleware(
+    HostRoutingMiddleware,
+    get_settings=lambda: app.dependency_overrides.get(get_settings, get_settings)(),
 )
 
 #: Every method this API routes, listed explicitly rather than as "*".

@@ -330,32 +330,39 @@ async def _serve_from(
     return response
 
 
-@router.get("/s/{slug}")
-async def serve_root_no_slash(slug: str) -> Response:
-    """Send `/s/slug` to `/s/slug/` so relative asset URLs resolve correctly."""
-    return RedirectResponse(
-        "/s/%s/" % slug, status_code=status.HTTP_308_PERMANENT_REDIRECT
-    )
+def _is_local_dev_host(request: Request) -> bool:
+    host = (request.headers.get("host") or "").split(":", 1)[0].strip().lower()
+    return host.startswith("localhost") or host.startswith("127.0.0.1")
 
 
-# The two preview routes are registered BEFORE the catch-all below, because
-# `/s/{slug}/{path:path}` would otherwise match `_d/...` as an ordinary file
-# path. FastAPI matches in registration order, so this ordering is load-bearing.
-@router.get("/s/{slug}/_d/{deployment_id}")
-async def preview_root_no_slash(slug: str, deployment_id: str) -> Response:
-    return RedirectResponse(
-        "/s/%s/_d/%s/" % (slug, deployment_id),
-        status_code=status.HTTP_308_PERMANENT_REDIRECT,
-    )
+def _host_redirect_target(
+    settings: Settings, request: Request, slug: str, suffix: str
+) -> str | None:
+    """Where `/s/{slug}/...` now lives, or None if it still lives here.
+
+    URL_MODE=subdomain (AUTODEPLOY.md section 1 / the getdropbin.xyz migration)
+    moves every site off the API origin and onto `{slug}.{SITE_DOMAIN}`. The old
+    `/s/{slug}/...` links are not dead - they are wherever a user already pasted
+    them - so path mode keeps working as a permanent redirect rather than a 404.
+
+    Except on localhost/127.0.0.1: `app/hostrouting.py` falls back to
+    path-based routing there so local dev needs no wildcard DNS, and a site
+    that only exists locally cannot be reached at `{slug}.{SITE_DOMAIN}`
+    either - redirecting it there would be a dead end, not a fix.
+    """
+    if settings.url_mode == "subdomain" and settings.site_domain and not _is_local_dev_host(
+        request
+    ):
+        return "https://%s.%s/%s" % (slug, settings.site_domain, suffix.lstrip("/"))
+    return None
 
 
-@router.get("/s/{slug}/_d/{deployment_id}/{path:path}")
-async def serve_preview(
+async def serve_project_preview(
     slug: str,
     deployment_id: str,
     path: str,
     request: Request,
-    settings: Settings = Depends(get_settings),
+    settings: Settings,
 ) -> Response:
     """A past deployment of this project, so it can be seen before promoting.
 
@@ -369,6 +376,10 @@ async def serve_preview(
     project (otherwise any slug becomes an oracle for every deployment in the
     bucket), and it must be `ready` (a pending or failed deployment has partial
     objects or none, and previewing it would show a broken site).
+
+    Shared by the `/s/{slug}/_d/{deployment_id}/...` routes (path mode) and the
+    host-routing middleware (subdomain mode, `app/hostrouting.py`) - one copy of
+    the resolution logic no matter which URL got a request here.
     """
     _rate_limit(request)
 
@@ -410,13 +421,18 @@ async def serve_preview(
     )
 
 
-@router.get("/s/{slug}/{path:path}")
-async def serve(
+async def serve_project(
     slug: str,
     path: str,
     request: Request,
-    settings: Settings = Depends(get_settings),
+    settings: Settings,
 ) -> Response:
+    """The live site for `slug`, resolved and answered.
+
+    Shared by the `/s/{slug}/{path}` route (path mode) and the host-routing
+    middleware (subdomain mode, `app/hostrouting.py` calls this directly for
+    `Host: {slug}.{SITE_DOMAIN}`) - the exact same resolution either way.
+    """
     _rate_limit(request)
 
     slug = slug.lower()
@@ -439,3 +455,65 @@ async def serve(
         )
 
     return await _serve_from(deployment_id, path, settings)
+
+
+@router.get("/s/{slug}")
+async def serve_root_no_slash(
+    slug: str, request: Request, settings: Settings = Depends(get_settings)
+) -> Response:
+    """Send `/s/slug` to `/s/slug/` so relative asset URLs resolve correctly.
+
+    In subdomain mode this goes straight to the new home instead - no reason to
+    bounce through the old path first.
+    """
+    target = _host_redirect_target(settings, request, slug, "")
+    if target is not None:
+        return RedirectResponse(target, status_code=status.HTTP_301_MOVED_PERMANENTLY)
+    return RedirectResponse(
+        "/s/%s/" % slug, status_code=status.HTTP_308_PERMANENT_REDIRECT
+    )
+
+
+# The two preview routes are registered BEFORE the catch-all below, because
+# `/s/{slug}/{path:path}` would otherwise match `_d/...` as an ordinary file
+# path. FastAPI matches in registration order, so this ordering is load-bearing.
+@router.get("/s/{slug}/_d/{deployment_id}")
+async def preview_root_no_slash(
+    slug: str, deployment_id: str, request: Request, settings: Settings = Depends(get_settings)
+) -> Response:
+    target = _host_redirect_target(settings, request, slug, "_d/%s/" % deployment_id)
+    if target is not None:
+        return RedirectResponse(target, status_code=status.HTTP_301_MOVED_PERMANENTLY)
+    return RedirectResponse(
+        "/s/%s/_d/%s/" % (slug, deployment_id),
+        status_code=status.HTTP_308_PERMANENT_REDIRECT,
+    )
+
+
+@router.get("/s/{slug}/_d/{deployment_id}/{path:path}")
+async def serve_preview(
+    slug: str,
+    deployment_id: str,
+    path: str,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+) -> Response:
+    target = _host_redirect_target(
+        settings, request, slug, "_d/%s/%s" % (deployment_id, path)
+    )
+    if target is not None:
+        return RedirectResponse(target, status_code=status.HTTP_301_MOVED_PERMANENTLY)
+    return await serve_project_preview(slug, deployment_id, path, request, settings)
+
+
+@router.get("/s/{slug}/{path:path}")
+async def serve(
+    slug: str,
+    path: str,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+) -> Response:
+    target = _host_redirect_target(settings, request, slug, path)
+    if target is not None:
+        return RedirectResponse(target, status_code=status.HTTP_301_MOVED_PERMANENTLY)
+    return await serve_project(slug, path, request, settings)

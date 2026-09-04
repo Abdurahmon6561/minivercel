@@ -103,6 +103,13 @@ class FakeGitHub:
             self.deleted_hooks.append(int(path.rsplit("/", 1)[1]))
             return httpx.Response(204)
 
+        if "/hooks/" in path and request.method == "PATCH":
+            hook_id = int(path.rsplit("/", 1)[1])
+            if hook_id not in self.hooks:
+                return httpx.Response(404, json={"message": "Not Found"})
+            self.hooks[hook_id]["config"] = json.loads(request.content)["config"]
+            return httpx.Response(200, json={"id": hook_id})
+
         if path.endswith("/actions/secrets/public-key"):
             return httpx.Response(200, json={"key": REPO_PUBLIC_KEY, "key_id": "kid-1"})
 
@@ -378,6 +385,40 @@ async def test_repo_picker_lists_only_pushable_repos(client, supabase, github):
     await connect_github(client, supabase)
     rows = (await client.get("/api/me/github/repos", headers=auth_headers())).json()
     assert [row["full_name"] for row in rows] == [REPO]
+
+
+# -- webhook maintenance (scripts/reimport_all.py) -----------------------------
+
+
+async def test_update_webhook_url_keeps_the_same_secret(github):
+    """scripts/reimport_all.py's whole job after a PUBLIC_BASE_URL change.
+
+    The secret is asserted, not just the URL: a webhook that silently lost its
+    secret would look fine here and fail every signature check in
+    app/routers/webhooks.py from the next push on.
+    """
+    client = GitHubClient("tok")
+    hook_id = await client.create_push_webhook(
+        "octocat", "hello-world", "https://minivercel.onrender.com/api/webhooks/github", "s3cr3t"
+    )
+
+    await client.update_webhook_url(
+        "octocat", "hello-world", hook_id, "https://api.getdropbin.xyz/api/webhooks/github", "s3cr3t"
+    )
+
+    config = github.hooks[hook_id]["config"]
+    assert config["url"] == "https://api.getdropbin.xyz/api/webhooks/github"
+    assert config["secret"] == "s3cr3t"
+    await client.aclose()
+
+
+async def test_update_webhook_url_for_a_missing_hook_raises(github):
+    client = GitHubClient("tok")
+    with pytest.raises(GitHubError):
+        await client.update_webhook_url(
+            "octocat", "hello-world", 999999, "https://api.getdropbin.xyz/api/webhooks/github", "s"
+        )
+    await client.aclose()
 
 
 # -- builds -------------------------------------------------------------------

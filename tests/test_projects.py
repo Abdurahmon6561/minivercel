@@ -55,6 +55,15 @@ async def test_invalid_slug_is_rejected(client):
     assert response.status_code == 400
 
 
+async def test_slug_with_a_dot_is_rejected(client):
+    """Universal SSL only covers one subdomain level: `a.b.getdropbin.xyz`
+    would have no certificate at all."""
+    response = await client.post(
+        "/api/projects", headers=auth_headers(), json={"name": "A", "slug": "evil.corp"}
+    )
+    assert response.status_code == 400
+
+
 async def test_another_user_cannot_see_or_delete_a_project(client):
     await client.post(
         "/api/projects", headers=auth_headers(), json={"name": "Mine", "slug": "mine"}
@@ -205,7 +214,17 @@ async def test_list_does_not_scale_queries_with_project_count(client, supabase):
 
 
 @pytest.mark.parametrize(
-    "slug", ["api", "admin", "www", "app", "docs", "assets", "health", "static"]
+    "slug",
+    [
+        "api", "admin", "www", "app", "docs", "assets", "health", "static",
+        # Added for the getdropbin.xyz migration (Host-based routing puts
+        # every slug on its own subdomain, so these matter there too).
+        "mail", "cdn", "test", "staging", "dev", "prod", "production",
+        "blog", "shop", "store", "help", "support", "status", "about",
+        "contact", "home", "root", "public", "private", "auth", "login",
+        "logout", "register", "signup", "oauth", "callback", "webhook",
+        "webhooks", "cron", "job", "jobs",
+    ],
 )
 async def test_reserved_slugs_are_refused(client, slug):
     """RESERVED is a security control, not decoration.

@@ -39,6 +39,11 @@ class Settings:
     # AUTODEPLOY.md section 1: flip these two to move sites onto subdomains.
     url_mode: str
     site_domain: str
+    #: Where the built dashboard (`npm run build` in web/) lives on disk, for
+    #: `app/hostrouting.py` to serve when url_mode=subdomain and Host is
+    #: `app.{site_domain}`. Unused in path mode. See the Dockerfile's `webbuild`
+    #: stage, which is what actually puts a build there in production.
+    dashboard_dist_dir: str
 
     max_deployment_bytes: int
     max_files_per_deployment: int
@@ -79,6 +84,7 @@ def get_settings() -> Settings:
         public_base_url=os.environ.get("PUBLIC_BASE_URL", "http://localhost:8000").rstrip("/"),
         url_mode=os.environ.get("URL_MODE", "path").strip().lower(),
         site_domain=os.environ.get("SITE_DOMAIN", "").strip().lstrip(".").rstrip("/"),
+        dashboard_dist_dir=os.environ.get("DASHBOARD_DIST_DIR", "web/dist").strip(),
         github_token_key=os.environ.get("GITHUB_TOKEN_KEY", ""),
         admin_token=os.environ.get("ADMIN_TOKEN", "").strip(),
         max_deployment_bytes=_int("MAX_DEPLOYMENT_BYTES", 50 * MB),

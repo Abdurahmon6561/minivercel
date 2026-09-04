@@ -28,13 +28,24 @@ NOUNS = [
 ]
 
 #: Words that must never become a slug. Anything that is one of our own path
-#: segments, or a hostname people expect to mean something else.
+#: segments, or a hostname people expect to mean something else - and, since
+#: the getdropbin.xyz migration (AUTODEPLOY.md section 1), an actual
+#: subdomain: `{slug}.getdropbin.xyz` puts every one of these at the same
+#: level as `api.` and `app.`, where a convincing-looking `login` or `oauth`
+#: subdomain is a phishing setup, not just an ugly URL.
 RESERVED = frozenset(
     {
-        "api", "www", "admin", "app", "dashboard", "docs", "status",
-        "login", "auth", "static", "assets", "s", "health", "mail",
+        # This project's own routing (app/main.py, app/hostrouting.py).
+        "api", "app", "www", "s", "health", "openapi", "redoc",
+        "webhooks", "deployments", "projects", "auth",
         # Ours, beyond the addendum's list.
-        "openapi", "redoc", "webhooks", "deployments", "projects",
+        "dashboard", "docs", "status", "login", "static", "assets", "mail",
+        # Hostnames and paths people expect to mean something else - the
+        # platform's own migration checklist.
+        "cdn", "test", "staging", "dev", "prod", "production", "blog",
+        "shop", "store", "help", "support", "about", "contact", "home",
+        "root", "public", "private", "logout", "register", "signup",
+        "oauth", "callback", "webhook", "cron", "job", "jobs", "admin",
     }
 )
 
