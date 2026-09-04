@@ -175,6 +175,26 @@ async def upstream_unreachable(request: Request, exc: httpx.HTTPError) -> JSONRe
         headers={"Retry-After": "30"},
     )
 
+@app.get("/api/debug-fs")
+def debug_fs():
+    """TEMPORARY - remove after verifying Docker build."""
+    import os
+    from app.config import get_settings
+    s = get_settings()
+    dist = s.dashboard_dist_dir if hasattr(s, 'dashboard_dist_dir') else os.environ.get('DASHBOARD_DIST_DIR', 'not set')
+    result = {
+        "DASHBOARD_DIST_DIR_env": os.environ.get('DASHBOARD_DIST_DIR'),
+        "DASHBOARD_DIST_DIR_setting": str(dist),
+        "cwd": os.getcwd(),
+    }
+    for path in ["/app", "/app/web-dist", "/app/web/dist", str(dist)]:
+        try:
+            result[f"ls {path}"] = sorted(os.listdir(path))[:20] if os.path.isdir(path) else "NOT A DIRECTORY"
+        except Exception as e:
+            result[f"ls {path}"] = f"error: {e}"
+    return resultP
+
+
 
 # Order matters. `github.router` owns the literal paths `/api/projects/import`
 # and `/api/projects/{slug}/builds`; `projects.router` owns `/api/projects/{slug}`.

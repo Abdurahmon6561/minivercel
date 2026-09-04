@@ -90,3 +90,27 @@ async def run_gc():
     body = result.as_dict()
     body["stuck_deployments_failed"] = reaped
     return body
+
+
+@router.get("/debug-fs", dependencies=[Depends(require_admin)])
+def debug_fs(settings: Settings = Depends(get_settings)):
+    """TEMPORARY: verify multi-stage Docker build put the dashboard where the
+    subdomain router expects it. Remove after checking."""
+    import os
+    dist = settings.dashboard_dist_dir
+    result = {
+        "DASHBOARD_DIST_DIR_env": os.environ.get("DASHBOARD_DIST_DIR"),
+        "DASHBOARD_DIST_DIR_setting": str(dist),
+        "cwd": os.getcwd(),
+    }
+    for path in ["/app", "/app/web-dist", "/app/web/dist", str(dist) if dist else ""]:
+        if not path:
+            continue
+        try:
+            if os.path.isdir(path):
+                result[f"ls {path}"] = sorted(os.listdir(path))[:30]
+            else:
+                result[f"ls {path}"] = "NOT A DIRECTORY"
+        except Exception as e:
+            result[f"ls {path}"] = f"error: {e}"
+    return result
