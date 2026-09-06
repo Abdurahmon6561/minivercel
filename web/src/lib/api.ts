@@ -6,6 +6,15 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /**
+     * Field name -> message, pulled from a FastAPI 422 body.
+     *
+     * The joined `message` is still the right thing for a banner, but a form
+     * wants to put "must be uppercase" under the KEY input rather than at the
+     * top of the dialog. Empty for every error that is not a validation
+     * failure.
+     */
+    public fields: Record<string, string> = {},
   ) {
     super(message);
     this.name = "ApiError";
@@ -21,18 +30,39 @@ async function accessToken(): Promise<string> {
   return token;
 }
 
-async function readError(response: Response): Promise<string> {
+interface ParsedError {
+  message: string;
+  fields: Record<string, string>;
+}
+
+async function readError(response: Response): Promise<ParsedError> {
+  const fields: Record<string, string> = {};
   try {
     const body = await response.json();
-    if (typeof body?.detail === "string") return body.detail;
-    // FastAPI validation errors arrive as a list of {loc, msg}.
+    if (typeof body?.detail === "string") return { message: body.detail, fields };
+
+    // FastAPI validation errors arrive as a list of {loc, msg}. `loc` is
+    // ["body", "<field>"], and its last element is the field name - which is
+    // what lets a form show the message where the mistake was made.
     if (Array.isArray(body?.detail)) {
-      return body.detail.map((item: { msg?: string }) => item.msg).join("; ");
+      const messages: string[] = [];
+      for (const item of body.detail as { loc?: unknown[]; msg?: string }[]) {
+        // Pydantic prefixes a custom validator's message with "Value error, ",
+        // which is noise to the person reading it.
+        const msg = String(item?.msg ?? "").replace(/^Value error,\s*/, "");
+        if (!msg) continue;
+        messages.push(msg);
+        const field = item?.loc?.[item.loc.length - 1];
+        // First message wins: a field with two failures needs one fix shown,
+        // not two stacked under the same input.
+        if (typeof field === "string" && !(field in fields)) fields[field] = msg;
+      }
+      if (messages.length) return { message: messages.join("; "), fields };
     }
   } catch {
     /* not JSON */
   }
-  return `Request failed (${response.status}).`;
+  return { message: `Request failed (${response.status}).`, fields };
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -52,7 +82,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     );
   }
 
-  if (!response.ok) throw new ApiError(response.status, await readError(response));
+  if (!response.ok) {
+    const { message, fields } = await readError(response);
+    throw new ApiError(response.status, message, fields);
+  }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
@@ -140,6 +173,15 @@ export interface ProjectDetail extends Project {
   deployments: Deployment[];
 }
 
+export interface EnvVar {
+  id: string;
+  key: string;
+  /** Never the real value. First two characters plus a fixed run of dots. */
+  value_masked: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
 export interface Me {
   id: string;
   email: string | null;
@@ -192,6 +234,37 @@ export const api = {
   /** Fetched lazily: the panel is collapsed until someone opens it. */
   getBuildLog: (deploymentId: string) =>
     request<BuildLog>(`/api/deployments/${encodeURIComponent(deploymentId)}/logs`),
+
+  // -- environment variables ------------------------------------------------
+  // The value is write-only by design: there is no endpoint that reads one
+  // back, so the dashboard can never display it and an edit is always a
+  // replacement rather than a modification of something shown.
+
+  listEnvVars: (slug: string) =>
+    request<EnvVar[]>(`/api/projects/${encodeURIComponent(slug)}/env`),
+
+  createEnvVar: (slug: string, key: string, value: string) =>
+    request<EnvVar>(`/api/projects/${encodeURIComponent(slug)}/env`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, value }),
+    }),
+
+  updateEnvVar: (slug: string, id: string, value: string) =>
+    request<EnvVar>(
+      `/api/projects/${encodeURIComponent(slug)}/env/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value }),
+      },
+    ),
+
+  deleteEnvVar: (slug: string, id: string) =>
+    request<void>(
+      `/api/projects/${encodeURIComponent(slug)}/env/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    ),
 
   listGithubRepos: () => request<GithubRepo[]>("/api/me/github/repos"),
 

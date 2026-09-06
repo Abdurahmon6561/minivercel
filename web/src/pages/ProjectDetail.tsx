@@ -13,6 +13,7 @@ import {
 
 import { DangerZone } from "../components/project/DangerZone";
 import { DeploymentsTab } from "../components/project/DeploymentsTab";
+import { EnvironmentTab } from "../components/project/EnvironmentTab";
 import { GitHubTab } from "../components/project/GitHubTab";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
@@ -22,7 +23,7 @@ import { DropZone } from "../components/DropZone";
 import { api, type Me, type ProjectDetail as Detail } from "../lib/api";
 import { exactTime, timeAgo } from "../lib/format";
 
-const TABS = ["deployments", "github", "settings"] as const;
+const TABS = ["deployments", "github", "environment", "settings"] as const;
 type TabName = (typeof TABS)[number];
 
 function CopyUrlButton({ url }: { url: string }) {
@@ -318,6 +319,7 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
           <TabsList>
             <TabsTrigger value="deployments">Deployments</TabsTrigger>
             <TabsTrigger value="github">GitHub</TabsTrigger>
+            <TabsTrigger value="environment">Environment</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
@@ -334,6 +336,12 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
 
           <TabsContent value="github">
             <GitHubTab project={project} onChanged={() => load({ quiet: true })} />
+          </TabsContent>
+
+          <TabsContent value="environment">
+            {/* Mounted only while the tab is open, so the list is fetched when
+                it is first looked at rather than on every project page load. */}
+            <EnvironmentTab slug={project.slug} />
           </TabsContent>
 
           <TabsContent value="settings">
