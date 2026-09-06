@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthProvider";
 import { ErrorBanner, Spinner } from "./components/Bits";
@@ -44,6 +44,22 @@ function Root() {
   if (loading) return <div className="min-h-screen bg-bg" />;
 
   return <Navigate to={session ? "/projects" : "/login"} replace />;
+}
+
+/**
+ * The old project URL. Kept so existing bookmarks and any link already shared
+ * keep working; `replace` so it does not sit in the history and bounce a back
+ * press straight forward again.
+ */
+function LegacyProjectRedirect() {
+  const { slug = "" } = useParams();
+  if (import.meta.env.DEV) {
+    console.warn(
+      `[dropbin] /p/${slug} is the old project URL - redirecting to /projects/${slug}. ` +
+        "The scheme changed in step 6; update any bookmark or hard-coded link.",
+    );
+  }
+  return <Navigate to={`/projects/${slug}`} replace />;
 }
 
 /** Everything behind the marketing page: needs config, auth, and the header. */
@@ -91,9 +107,10 @@ function Dashboard() {
         <Route path="/projects" element={<Projects />} />
         <Route path="/new" element={<NewProject me={me} onDeployed={refreshMe} />} />
         <Route
-          path="/p/:slug"
+          path="/projects/:slug"
           element={<ProjectDetail me={me} onChanged={refreshMe} />}
         />
+        <Route path="/p/:slug" element={<LegacyProjectRedirect />} />
         <Route path="/login" element={<Navigate to="/projects" replace />} />
         <Route
           path="*"

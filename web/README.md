@@ -7,10 +7,10 @@ React + Vite + Tailwind, deployed on Vercel. Talks to the Phase 1 API at
 /login      Continue with GitHub
 /           project list — live URL, last deploy time, status dot
 /new        drag-and-drop zip upload, or import from GitHub
-/p/{slug}   deployment history, GitHub settings, upload, delete
+/projects/{slug}   deployment history, GitHub settings, upload, delete
 ```
 
-On `/p/{slug}` a repo-backed project gets two independent switches — auto-deploy
+On `/projects/{slug}` a repo-backed project gets two independent switches — auto-deploy
 on push, and build with GitHub Actions — plus the build command and output
 directory (disabled while builds are off), and the outcome of the last webhook
 delivery so a push can be told apart from a push that was ignored.
@@ -89,7 +89,7 @@ reconnect GitHub.
 ### 4. Vercel
 
 Import this repo, set **Root Directory** to `web`. `vercel.json` handles the
-rest, including the SPA rewrite that stops `/p/{slug}` 404ing on reload.
+rest, including the SPA rewrite that stops `/projects/{slug}` 404ing on reload.
 
 Environment variables:
 

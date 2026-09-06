@@ -152,7 +152,7 @@ Pages:
 - `/login`
 - `/` — project list with live URL, last deploy time, status badge
 - `/new` — drag-and-drop zip upload
-- `/p/{slug}` — deployment history, redeploy, delete
+- `/projects/{slug}` — deployment history, redeploy, delete
 
 Design: dark, monospace for URLs and hashes, generous whitespace, status dots
 (green ready / amber pending / red failed). Do not build a component library;

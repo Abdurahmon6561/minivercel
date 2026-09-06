@@ -46,7 +46,7 @@ export function NewProject({ me, onDeployed }: { me: Me | null; onDeployed: () =
         setProgress,
       );
       onDeployed();
-      navigate(`/p/${result.project.slug}`);
+      navigate(`/projects/${result.project.slug}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       setProgress(null);

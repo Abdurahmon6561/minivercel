@@ -132,7 +132,7 @@ async def test_app_host_serves_the_built_dashboard(client, subdomain, tmp_path):
         assert b"dash" in root.content
 
         deep_link = await client.get(
-            "/p/some-project", headers={"Host": "app.getdropbin.xyz"}
+            "/projects/some-project", headers={"Host": "app.getdropbin.xyz"}
         )
         assert deep_link.status_code == 200
         assert b"dash" in deep_link.content  # SPA fallback to index.html

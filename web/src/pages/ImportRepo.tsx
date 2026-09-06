@@ -53,7 +53,7 @@ export function ImportRepo({ me, onImported }: { me: Me | null; onImported: () =
     try {
       const project = await api.importRepo(full, ref);
       onImported();
-      navigate(`/p/${project.slug}`);
+      navigate(`/projects/${project.slug}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       setBusy(null);

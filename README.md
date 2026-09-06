@@ -271,7 +271,7 @@ with 1 GB total it will be needed early.
   the Phase 1 validation pipeline, unchanged
 ```
 
-**Two independent switches per project**, both on `/p/{slug}`:
+**Two independent switches per project**, both on `/projects/{slug}`:
 
 | Switch | Off means |
 | --- | --- |

@@ -112,7 +112,7 @@ class DashboardStatic:
     Plain SPA static serving: a request path that matches a real file under
     the build directory - the hashed, long-cache `assets/*.js` and `*.css`
     Vite produces, `favicon.ico`, and so on - is served as-is. Anything else,
-    including a client-side route like `/p/blue-forest-4821` or a typo, gets
+    including a client-side route like `/projects/blue-forest-4821` or a typo, gets
     `index.html`, and the React router already bundled into it decides what
     that means. This is the same rewrite web/vercel.json used on Vercel, so
     the dashboard behaves identically served from here.

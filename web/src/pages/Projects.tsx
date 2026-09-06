@@ -47,7 +47,7 @@ function ProjectCard({ project }: { project: Project }) {
         */}
         <h2 className="min-w-0 text-[15px] font-semibold text-text">
           <Link
-            to={`/p/${project.slug}`}
+            to={`/projects/${project.slug}`}
             className="after:absolute after:inset-0 after:content-[''] hover:text-primary"
           >
             {project.name}
