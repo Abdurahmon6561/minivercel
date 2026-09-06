@@ -518,6 +518,83 @@ class Store:
     async def delete_github_token(self, user_id: str) -> None:
         await self.db.delete("github_tokens", {"user_id": "eq." + user_id})
 
+    # -- project environment variables -------------------------------------
+    #
+    # Values arrive here already encrypted (app/crypto.py) and leave the same
+    # way: this layer never sees plaintext, exactly as with github_tokens.
+    # Callers are responsible for having resolved the project through
+    # `get_owned_project` first - nothing below re-checks ownership.
+
+    ENV_VAR_COLUMNS = "id,project_id,key,value_encrypted,created_at,updated_at"
+
+    async def list_env_vars(self, project_id: str) -> list[dict]:
+        return await self.db.select(
+            "project_env_vars",
+            {
+                "select": self.ENV_VAR_COLUMNS,
+                "project_id": "eq." + project_id,
+                "order": "key.asc",
+            },
+        )
+
+    async def get_env_var(self, project_id: str, var_id: str) -> dict | None:
+        """Scoped by project_id as well as id, so a var id from one project
+        cannot be used to reach into another."""
+        rows = await self.db.select(
+            "project_env_vars",
+            {
+                "select": self.ENV_VAR_COLUMNS,
+                "id": "eq." + var_id,
+                "project_id": "eq." + project_id,
+                "limit": "1",
+            },
+        )
+        return rows[0] if rows else None
+
+    async def create_env_var(
+        self, project_id: str, key: str, value_encrypted: str
+    ) -> dict:
+        """Raises Conflict if the key already exists on this project.
+
+        The unique index on (project_id, key) is what decides that, not a
+        read-then-write here: two concurrent POSTs of the same key would both
+        pass a pre-check and only the index would stop the second.
+        """
+        now = _now_iso()
+        try:
+            return await self.db.insert(
+                "project_env_vars",
+                {
+                    "project_id": project_id,
+                    "key": key,
+                    "value_encrypted": value_encrypted,
+                    "created_at": now,
+                    "updated_at": now,
+                },
+            )
+        except SupabaseError as exc:
+            if exc.status_code == 409 or "duplicate key" in str(exc).lower():
+                raise Conflict(f"{key} is already set on this project.") from exc
+            raise
+
+    async def update_env_var(
+        self, project_id: str, var_id: str, value_encrypted: str
+    ) -> dict | None:
+        """Value only. The key is immutable: renaming one is deleting it and
+        creating another, and pretending otherwise hides that the old name
+        stops being injected."""
+        rows = await self.db.update(
+            "project_env_vars",
+            {"id": "eq." + var_id, "project_id": "eq." + project_id},
+            {"value_encrypted": value_encrypted, "updated_at": _now_iso()},
+        )
+        return rows[0] if rows else None
+
+    async def delete_env_var(self, project_id: str, var_id: str) -> None:
+        await self.db.delete(
+            "project_env_vars", {"id": "eq." + var_id, "project_id": "eq." + project_id}
+        )
+
     # -- quota -------------------------------------------------------------
 
     async def user_bytes_used(self, owner_id: str) -> int:

@@ -21,6 +21,7 @@ from .hostrouting import HostRoutingMiddleware
 from .routers import (
     admin,
     deployments,
+    env_vars,
     github,
     health,
     me,
@@ -185,6 +186,9 @@ app.include_router(admin.router)
 app.include_router(me.router)
 app.include_router(github.router)
 app.include_router(projects.router)
+# Mounted after projects: both live under /api/projects/{slug}, and this one's
+# paths are strictly longer, so ordering is cosmetic rather than load-bearing.
+app.include_router(env_vars.router)
 app.include_router(deployments.router)
 app.include_router(webhooks.router)
 app.include_router(serve.router)

@@ -64,6 +64,7 @@ class FakeSupabase:
             "projects": [],
             "deployments": [],
             "github_tokens": [],
+            "project_env_vars": [],
         }
         self.objects: dict[str, tuple[bytes, str]] = {}
         self.upload_calls: list[tuple[str, str]] = []
@@ -151,6 +152,17 @@ class FakeSupabase:
             record.setdefault("live_deployment_id", None)
         if table == "github_tokens":
             record.pop("id", None)
+        if table == "project_env_vars":
+            # Mirrors project_env_vars_project_key_idx. Without this the fake
+            # would happily accept a duplicate and the 409 path would never be
+            # exercised by a test.
+            if any(
+                v["project_id"] == record["project_id"] and v["key"] == record["key"]
+                for v in self.tables["project_env_vars"]
+            ):
+                raise SupabaseError(
+                    "duplicate key value violates unique constraint", 409
+                )
         if table == "projects":
             record.setdefault("repo_full_name", None)
             record.setdefault("repo_branch", None)
