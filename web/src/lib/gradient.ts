@@ -10,6 +10,8 @@
  * which is the only thing that makes it useful as recognition rather than
  * decoration. Real screenshots replace this later.
  */
+import { hash } from "./hash";
+
 const PAIRS: [string, string][] = [
   ["--primary", "--accent-vivid"],
   ["--accent-vivid", "--info"],
@@ -17,15 +19,6 @@ const PAIRS: [string, string][] = [
   ["--accent", "--accent-vivid"],
   ["--primary", "--info"],
 ];
-
-function hash(value: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < value.length; i++) {
-    h ^= value.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
 
 export function slugGradient(slug: string): string {
   const h = hash(slug);
