@@ -1,45 +1,96 @@
-import { useAuth } from "../auth/AuthProvider";
-import { Button, ErrorBanner } from "../components/Bits";
-import { githubScopes } from "../lib/supabase";
+import { AlertCircle } from "lucide-react";
 
+import { useAuth } from "../auth/AuthProvider";
+import { Button } from "../components/ui/button";
+import { GithubMark } from "../components/ui/github-mark";
+import { ThemeToggle } from "../components/ui/theme-toggle";
+import { Wordmark } from "../components/ui/wordmark";
+
+/**
+ * The only unauthenticated page inside the dashboard.
+ *
+ * Same visual language as the landing - one header bar, the same wordmark, the
+ * same card treatment - because arriving here from the landing's CTA should
+ * feel like the next step rather than a different product.
+ */
 export function Login() {
   const { signIn, error } = useAuth();
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-6">
-      <div className="w-full max-w-sm">
-        <div className="mb-12 text-center">
-          <div className="mb-5 text-4xl leading-none" aria-hidden="true">
-            ▲
+    <div className="flex min-h-screen flex-col bg-bg">
+      <header className="border-b border-border">
+        <div className="mx-auto flex max-w-5xl items-center gap-4 px-6 py-4">
+          {/* Not a link. On the dashboard host "/" resolves straight back to
+              /login for a signed-out visitor, so it would look broken. */}
+          <Wordmark />
+          <div className="ml-auto">
+            <ThemeToggle />
           </div>
-          <h1 className="text-xl font-semibold tracking-tight text-text">Dropbin</h1>
-          <p className="mt-3 text-sm leading-relaxed text-muted">
-            Upload a zip of static files, get a public URL.
-          </p>
         </div>
+      </header>
 
-        {error && (
-          <div className="mb-6">
-            <ErrorBanner message={error} />
+      <main className="flex flex-1 items-center justify-center px-6 py-16">
+        <div className="w-full max-w-sm">
+          <div className="rounded-xl border border-border bg-surface p-8 shadow-md">
+            <Wordmark size="lg" className="mb-6" />
+
+            <h1 className="text-xl leading-snug font-semibold tracking-tight text-balance text-text">
+              Sign in to deploy your static sites
+            </h1>
+            <p className="mt-2 text-sm leading-relaxed text-muted">
+              A zip or a GitHub repo. Public URL in seconds.
+            </p>
+
+            {error && (
+              <div
+                role="alert"
+                className="mt-6 flex items-start gap-2.5 rounded-md border border-destructive/35 bg-destructive-subtle px-3.5 py-3 text-[13px] leading-relaxed text-destructive-subtle-fg"
+              >
+                <AlertCircle className="mt-px size-4 shrink-0" aria-hidden="true" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <Button
+              variant="primary"
+              size="lg"
+              block
+              className="mt-7"
+              icon={<GithubMark className="size-4" />}
+              onClick={() => void signIn()}
+            >
+              Continue with GitHub
+            </Button>
           </div>
-        )}
 
-        <Button
-          variant="primary"
-          className="w-full py-3"
-          onClick={() => void signIn()}
-        >
-          <svg viewBox="0 0 16 16" className="h-4 w-4 fill-current" aria-hidden="true">
-            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
-          </svg>
-          Continue with GitHub
-        </Button>
-
-        <p className="mt-6 text-center text-xs leading-relaxed text-faint">
-          Requests the <span className="font-mono">{githubScopes}</span> scope, so
-          importing a repository works later without asking again.
-        </p>
-      </div>
+          {/* Outside the card: this explains what happens after the button, and
+              belongs with the decision rather than inside the control. */}
+          <div className="mt-6 px-1">
+            <h2 className="text-[11px] font-semibold tracking-[0.08em] text-muted uppercase">
+              What Dropbin asks for
+            </h2>
+            <dl className="mt-3 space-y-2 text-[13px] leading-relaxed">
+              <div className="flex gap-2.5">
+                <dt className="font-mono text-xs text-accent">repo</dt>
+                <dd className="text-muted">
+                  Read the repository you import and register the push webhook.
+                </dd>
+              </div>
+              <div className="flex gap-2.5">
+                <dt className="font-mono text-xs text-accent">workflow</dt>
+                <dd className="text-muted">
+                  Commit the build workflow. GitHub does not grant this with{" "}
+                  <span className="font-mono text-[11px]">repo</span> alone.
+                </dd>
+              </div>
+            </dl>
+            <p className="mt-3 text-[13px] leading-relaxed text-muted">
+              Builds run in your own GitHub Actions — we never run your code. You can
+              revoke access at any time from GitHub settings.
+            </p>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

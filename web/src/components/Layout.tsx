@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { useAuth } from "../auth/AuthProvider";
 import { ThemeToggle } from "./ui/theme-toggle";
+import { Wordmark } from "./ui/wordmark";
 import { formatBytes } from "../lib/format";
 import type { Me } from "../lib/api";
 
@@ -40,9 +41,8 @@ export function Layout({ children, me }: { children: ReactNode; me: Me | null })
     <div className="min-h-screen">
       <header className="border-b border-edge">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-4 px-6 py-4">
-          <Link to="/projects" className="flex items-center gap-2 text-text">
-            <span aria-hidden="true">▲</span>
-            <span className="text-sm font-semibold tracking-tight">Dropbin</span>
+          <Link to="/projects">
+            <Wordmark />
           </Link>
 
           <nav className="flex items-center gap-1">

@@ -1,4 +1,4 @@
-# MiniVercel dashboard — Phases 2–4
+# Dropbin dashboard — Phases 2–4
 
 React + Vite + Tailwind, deployed on Vercel. Talks to the Phase 1 API at
 `https://minivercel.onrender.com` and to Supabase Auth directly.

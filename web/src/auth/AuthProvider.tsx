@@ -10,6 +10,7 @@ import {
 import type { Session } from "@supabase/supabase-js";
 
 import { api } from "../lib/api";
+import { dashboardOrigin } from "../lib/host";
 import { githubScopes, supabase } from "../lib/supabase";
 
 interface AuthValue {
@@ -86,7 +87,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       provider: "github",
       options: {
         scopes: githubScopes,
-        redirectTo: window.location.origin,
+        // Not window.location.origin: sign-in can start from the apex (the
+        // landing's CTA) and must still finish in the dashboard.
+        redirectTo: dashboardOrigin(),
       },
     });
     if (cause) setError(cause.message);

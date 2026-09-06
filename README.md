@@ -1,4 +1,4 @@
-# MiniVercel
+# Dropbin
 
 Upload a zip of static files, get a public URL.
 

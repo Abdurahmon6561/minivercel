@@ -6,6 +6,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { Button } from "../components/ui/button";
 import { GithubMark } from "../components/ui/github-mark";
 import { ThemeToggle } from "../components/ui/theme-toggle";
+import { Wordmark } from "../components/ui/wordmark";
 
 /**
  * The marketing page, served at `/` on the apex domain.
@@ -41,17 +42,6 @@ function Feature({
       <h3 className="mb-1.5 text-sm font-semibold text-text">{title}</h3>
       <p className="text-[13px] leading-relaxed text-muted">{children}</p>
     </div>
-  );
-}
-
-function Wordmark() {
-  return (
-    <span className="flex items-center gap-2">
-      <span aria-hidden="true" className="text-lg leading-none text-primary">
-        ▲
-      </span>
-      <span className="text-sm font-semibold tracking-tight text-text">Dropbin</span>
-    </span>
   );
 }
 
