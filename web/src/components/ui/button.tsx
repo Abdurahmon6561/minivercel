@@ -26,15 +26,20 @@ import { cn } from "../../lib/cn";
 const button = cva(
   [
     "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap",
-    "font-medium select-none",
+    "font-medium select-none cursor-pointer",
     // 150ms is the ceiling for something that should feel instant. Only the
     // properties that actually change animate: transitioning `all` also
     // animates layout on a width change, which reads as lag.
     "transition-[background-color,border-color,color,box-shadow,transform] duration-150",
     "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
     // A disabled button must still look like a button, or the user reads the
-    // screen as broken rather than as blocked.
-    "disabled:pointer-events-none disabled:opacity-50",
+    // screen as broken rather than as blocked - and the cursor should say
+    // "blocked" rather than "clickable".
+    //
+    // No `pointer-events-none`: a native disabled <button> already fires no
+    // click, so suppressing pointer events only costs the not-allowed cursor
+    // that tells the user why nothing happened.
+    "disabled:cursor-not-allowed disabled:opacity-50",
     "[&_svg]:pointer-events-none [&_svg]:shrink-0",
   ],
   {

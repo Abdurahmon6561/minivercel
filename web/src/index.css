@@ -49,6 +49,33 @@ body {
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
+/* ---------------------------------------------------------------------------
+   Pointer cursors.
+
+   Tailwind v3's preflight carried `button, [role="button"] { cursor: pointer }`.
+   v4 dropped it and defers to the browser default, which for a <button> is
+   `cursor: default` - so every button in the app looked unclickable on hover.
+
+   Restored here rather than per component, because the components that need it
+   most are the ones we do not author: Radix renders its own buttons for tab
+   triggers, dialog closes and menu items, and a class list on our wrapper does
+   not always reach them. The ARIA roles below cover the cases Radix renders as
+   a <div> rather than a <button>.
+
+   `Button` also sets `cursor-pointer` in its own variants, so that reading
+   button.tsx does not require knowing this rule exists.
+   --------------------------------------------------------------------------- */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+[role="tab"]:not([aria-disabled="true"]),
+[role="switch"]:not(:disabled),
+[role="menuitem"],
+[role="menuitemradio"],
+[role="menuitemcheckbox"],
+[role="option"] {
+  cursor: pointer;
+}
+
 /* Focus that is visible without being loud. Keyboard users need this, and the
    browser default is not reliable on either of our surface colours. */
 :focus-visible {
