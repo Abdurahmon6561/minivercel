@@ -66,7 +66,7 @@ export function DropZone({
         }}
         className={`flex w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed px-6 py-16 text-center transition-colors ${
           dragging
-            ? "border-accent bg-accent/5"
+            ? "border-primary bg-primary/5"
             : "border-edge-bright bg-panel hover:border-faint"
         } disabled:cursor-not-allowed disabled:opacity-50`}
       >

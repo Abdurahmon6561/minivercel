@@ -63,7 +63,7 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
     try {
       await api.deleteProject(slug);
       onChanged();
-      navigate("/");
+      navigate("/projects");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       setConfirmingDelete(false);
@@ -80,7 +80,7 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
     return (
       <div>
         {error ? <ErrorBanner message={error} /> : <Spinner label="Loading project" />}
-        <Link to="/" className="mt-6 inline-block text-sm text-muted hover:text-text">
+        <Link to="/projects" className="mt-6 inline-block text-sm text-muted hover:text-text">
           ← All projects
         </Link>
       </div>
@@ -89,7 +89,7 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
 
   return (
     <div>
-      <Link to="/" className="mb-8 inline-block text-sm text-muted hover:text-text">
+      <Link to="/projects" className="mb-8 inline-block text-sm text-muted hover:text-text">
         ← All projects
       </Link>
 
@@ -100,7 +100,7 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
             href={project.url}
             target="_blank"
             rel="noreferrer noopener"
-            className="mt-2 inline-block font-mono text-sm break-all text-muted transition-colors hover:text-accent"
+            className="mt-2 inline-block font-mono text-sm break-all text-muted transition-colors hover:text-primary"
           >
             {project.url}
           </a>
@@ -144,7 +144,7 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
             <Panel className="px-6 py-12 text-center">
               <div className="mx-auto h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-edge">
                 <div
-                  className="h-full bg-accent transition-[width] duration-200"
+                  className="h-full bg-primary transition-[width] duration-200"
                   style={{ width: `${Math.round(progress * 100)}%` }}
                 />
               </div>

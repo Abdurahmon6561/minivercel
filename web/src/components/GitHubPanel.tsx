@@ -19,7 +19,7 @@ function LastDelivery({ project }: { project: ProjectDetail }) {
   if (!project.webhook_registered) {
     return (
       <p className="text-xs text-faint">
-        No webhook registered. Pushes will not reach MiniVercel.
+        No webhook registered. Pushes will not reach Dropbin.
       </p>
     );
   }
@@ -97,7 +97,7 @@ export function GitHubPanel({
           href={`https://github.com/${project.repo_full_name}`}
           target="_blank"
           rel="noreferrer noopener"
-          className="font-mono text-sm text-text transition-colors hover:text-accent"
+          className="font-mono text-sm text-text transition-colors hover:text-primary"
         >
           {project.repo_full_name}
         </a>
@@ -152,7 +152,7 @@ export function GitHubPanel({
                 disabled={!project.builds_enabled || busy !== null}
                 placeholder="npm run build"
                 maxLength={200}
-                className="w-full rounded-md border border-edge-bright bg-ink px-3 py-2 font-mono text-xs text-text placeholder:text-faint focus:border-accent focus:outline-none disabled:cursor-not-allowed"
+                className="w-full rounded-md border border-edge-bright bg-ink px-3 py-2 font-mono text-xs text-text placeholder:text-faint focus:border-primary focus:outline-none disabled:cursor-not-allowed"
               />
             </label>
             <label className="w-40">
@@ -163,7 +163,7 @@ export function GitHubPanel({
                 disabled={!project.builds_enabled || busy !== null}
                 placeholder="dist"
                 maxLength={100}
-                className="w-full rounded-md border border-edge-bright bg-ink px-3 py-2 font-mono text-xs text-text placeholder:text-faint focus:border-accent focus:outline-none disabled:cursor-not-allowed"
+                className="w-full rounded-md border border-edge-bright bg-ink px-3 py-2 font-mono text-xs text-text placeholder:text-faint focus:border-primary focus:outline-none disabled:cursor-not-allowed"
               />
             </label>
             <Button

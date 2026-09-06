@@ -157,7 +157,7 @@ export function DeploymentRow({
               href={deployment.preview_url}
               target="_blank"
               rel="noreferrer noopener"
-              className="text-xs text-muted underline-offset-2 transition-colors hover:text-accent hover:underline"
+              className="text-xs text-muted underline-offset-2 transition-colors hover:text-primary hover:underline"
             >
               Preview
             </a>
@@ -166,7 +166,7 @@ export function DeploymentRow({
             <button
               type="button"
               onClick={() => setConfirming(true)}
-              className="text-xs text-muted underline-offset-2 transition-colors hover:text-accent hover:underline"
+              className="text-xs text-muted underline-offset-2 transition-colors hover:text-primary hover:underline"
             >
               Promote to live
             </button>

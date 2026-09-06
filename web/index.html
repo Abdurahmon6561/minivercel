@@ -1,11 +1,38 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="dark" />
-    <title>MiniVercel</title>
+    <meta name="color-scheme" content="light dark" />
+    <title>Dropbin</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>▲</text></svg>" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    />
+
+    <script>
+      // Applied before first paint, so a dark-theme user never sees a white
+      // flash while the bundle loads. Duplicates the logic in
+      // src/lib/theme.ts on purpose: this runs inline, and inline cannot
+      // import. Keep the storage key in step with THEME_STORAGE_KEY there.
+      (function () {
+        try {
+          var stored = localStorage.getItem("minivercel-theme");
+          if (stored === "light" || stored === "dark") {
+            document.documentElement.setAttribute("data-theme", stored);
+            document.documentElement.style.colorScheme = stored;
+          }
+          // No attribute for "system" or for a first visit: the
+          // prefers-color-scheme block in tokens.css decides.
+        } catch (e) {
+          /* site data blocked - fall through to the OS preference */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

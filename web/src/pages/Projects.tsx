@@ -30,7 +30,7 @@ function ProjectRow({ project }: { project: Project }) {
         <div className="min-w-0 flex-1">
           <Link
             to={`/p/${project.slug}`}
-            className="text-base text-text transition-colors hover:text-accent"
+            className="text-base text-text transition-colors hover:text-primary"
           >
             {project.name}
           </Link>
@@ -39,7 +39,7 @@ function ProjectRow({ project }: { project: Project }) {
               href={project.url}
               target="_blank"
               rel="noreferrer noopener"
-              className="font-mono text-xs break-all text-muted transition-colors hover:text-accent"
+              className="font-mono text-xs break-all text-muted transition-colors hover:text-primary"
             >
               {project.url}
             </a>

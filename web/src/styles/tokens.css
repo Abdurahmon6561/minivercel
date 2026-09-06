@@ -1,0 +1,324 @@
+/* ---------------------------------------------------------------------------
+   MiniVercel design tokens.
+
+   The single source of truth for colour, spacing, radius and shadow. Nothing
+   outside this file should contain a hex value: components reference the
+   Tailwind utilities generated from the `@theme inline` block at the bottom,
+   which point back at these variables. Swapping the palette is an edit here
+   and nowhere else.
+
+   TWO accents, with different jobs. Getting this wrong is what makes a
+   two-colour palette look noisy:
+
+     primary (indigo/violet)  Actions. Buttons you press, the active nav item,
+                              links. If pressing it does something, it is
+                              primary.
+     accent  (cyan)           Emphasis. Feature-card icons, key metrics, the
+                              landing hero's highlighted words, chart strokes.
+                              Decoration and data - never a plain "Save".
+
+   A screen should have exactly one filled primary button and any number of
+   accent-coloured icons and numbers. Reverse that and it reads as a carnival.
+
+   Themes switch on `data-theme` on <html>:
+
+       <html data-theme="light">   light, always
+       <html data-theme="dark">    dark, always
+       <html>                      follow the OS (prefers-color-scheme)
+
+   `src/lib/theme.ts` owns writing that attribute. The `@media` block is what
+   makes the unattributed (system) case work, so every token is defined three
+   times: bare `:root` for light, the media query for "system says dark", and
+   `[data-theme="dark"]` for "the user chose dark". Never define a colour in
+   only one of those - a token that exists only under the media query is
+   invisible to the toggle.
+   --------------------------------------------------------------------------- */
+
+/* == Light ================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces. Cool neutrals - Tailwind's slate ramp. The blue in the grey is
+     what stops a developer tool reading as a stationery brand; it is a tint,
+     not a colour, and should never be noticeable on its own. */
+  --bg: #f8fafc; /* slate-50  */
+  --surface: #ffffff;
+  --surface-hover: #f1f5f9; /* slate-100 */
+  --surface-sunken: #eef2f7; /* code blocks, log output, inset wells */
+  --border: #e2e8f0; /* slate-200 */
+  --border-strong: #cbd5e1; /* slate-300 */
+
+  /* Text. Two weights, not three.
+     There was a --text-faint at slate-400, and it measured 2.5:1 here - below
+     AA even for supplementary text. Anything on this background that clears
+     4.5:1 lands on slate-500, which is what --text-muted already is, so a third
+     weight could only ever be an accessible duplicate or an inaccessible one.
+     Hierarchy below `muted` now comes from size and placement instead. */
+  --text: #0f172a; /* slate-900 - 17.1:1 on --bg */
+  --text-muted: #64748b; /* slate-500 -  4.6:1 on --bg, 4.8:1 on --surface */
+
+  /* Primary - indigo. Actions.
+     White on #4f46e5 is 6.3:1. The brighter indigo-500 was the first choice and
+     measured 4.46:1 - technically a pass, but close enough to the 4.5 line that
+     any later tweak to the label size or weight would quietly break it. One
+     step down buys the margin and costs nothing else. */
+  --primary: #4f46e5; /* indigo-600 */
+  --primary-hover: #4338ca; /* indigo-700 */
+  --primary-fg: #ffffff;
+  --primary-subtle: #eef2ff; /* indigo-50  */
+  --primary-subtle-fg: #3730a3; /* indigo-800 - 8.9:1 on the subtle fill */
+
+  /* Accent - cyan. Emphasis.
+     Cyan-700 rather than the cyan-500 it is drawn from: #06b6d4 on white is
+     2.6:1, which is unreadable as a metric and illegible as a label. This is
+     the same hue two steps down, still unmistakably cyan against the indigo,
+     and 5.4:1 on white. The dark side gets the bright value, where it works.
+     The cyan-500 itself lives on as --accent-vivid, further down, for the
+     decorative fills where nothing has to be read. */
+  --accent: #0e7490; /* cyan-700 */
+  --accent-hover: #155e75; /* cyan-800 */
+  --accent-fg: #ffffff;
+  --accent-subtle: #ecfeff; /* cyan-50  */
+  --accent-subtle-fg: #155e75; /* cyan-800 */
+
+  /* Destructive - saturated red, for anything that removes data. */
+  --destructive: #dc2626;
+  --destructive-hover: #b91c1c;
+  --destructive-fg: #ffffff;
+  --destructive-subtle: #fef2f2;
+  --destructive-subtle-fg: #991b1b;
+
+  /* Status. Independent of the brand on purpose: a "deploy succeeded" badge
+     should not change colour because the brand did. */
+  --success: #059669;
+  --success-subtle: #ecfdf5;
+  --success-subtle-fg: #065f46;
+
+  --warning: #d97706;
+  --warning-subtle: #fffbeb;
+  --warning-subtle-fg: #92400e;
+
+  --info: #2563eb;
+  --info-subtle: #eff6ff;
+  --info-subtle-fg: #1e40af;
+
+  /* One focus ring colour everywhere, so keyboard focus is never ambiguous
+     about what it is highlighting. Cyan, so it stays visible on top of an
+     indigo primary button - a ring in the primary hue on a primary-coloured
+     button is a ring nobody can see. */
+  --ring: #0891b2; /* cyan-600 */
+
+  /* Shadows: barely there in light, where the border does the separating. */
+  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.06);
+  --shadow-md: 0 2px 4px -1px rgb(15 23 42 / 0.07), 0 4px 12px -2px rgb(15 23 42 / 0.08);
+  --shadow-lg: 0 4px 8px -2px rgb(15 23 42 / 0.06), 0 12px 32px -4px rgb(15 23 42 / 0.14);
+}
+
+/* == Dark ==================================================================
+   Written twice: once for "the OS says dark and the user has not chosen", once
+   for "the user chose dark". The `:not([data-theme="light"])` guard is what
+   lets an explicit light choice beat a dark OS setting. */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    /* The page ground is near-neutral black; everything lifted off it carries
+       the blue. That contrast between a flat backdrop and cool, slightly lit
+       surfaces is what reads as depth rather than as a dark grey rectangle. */
+    --bg: #0a0a0b;
+    --surface: #121319;
+    --surface-hover: #1a1c23;
+    --surface-sunken: #060607;
+    --border: #23252e;
+    --border-strong: #343846;
+
+    --text: #f1f5f9; /* slate-100 - 16.7:1 on --surface */
+    --text-muted: #94a3b8; /* slate-400 -  7.7:1 on --bg */
+
+    --primary: #818cf8; /* indigo-400 */
+    --primary-hover: #a5b4fc; /* indigo-300 */
+    --primary-fg: #1e1b4b; /* indigo-950 - 5.4:1 on the button */
+    --primary-subtle: #1c1b3a;
+    --primary-subtle-fg: #c7d2fe; /* indigo-200 */
+
+    --accent: #22d3ee; /* cyan-400 */
+    --accent-hover: #67e8f9; /* cyan-300 */
+    --accent-fg: #083344; /* cyan-950 */
+    --accent-subtle: #0b2b33;
+    --accent-subtle-fg: #67e8f9; /* cyan-300 */
+
+    --destructive: #ef4444;
+    --destructive-hover: #f87171;
+    --destructive-fg: #2a0d0d;
+    --destructive-subtle: #2c1516;
+    --destructive-subtle-fg: #fca5a5;
+
+    --success: #34d399;
+    --success-subtle: #0f2a22;
+    --success-subtle-fg: #6ee7b7;
+
+    --warning: #fbbf24;
+    --warning-subtle: #2a2110;
+    --warning-subtle-fg: #fcd34d;
+
+    --info: #60a5fa;
+    --info-subtle: #16233a;
+    --info-subtle-fg: #93c5fd;
+
+    --ring: #22d3ee; /* cyan-400 */
+
+    /* Pronounced in dark: there is no ambient light, so depth has to be drawn
+       rather than implied - the shadow is what lifts a card off the page. */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+    --shadow-md: 0 2px 6px -1px rgb(0 0 0 / 0.6), 0 6px 16px -3px rgb(0 0 0 / 0.5);
+    --shadow-lg: 0 6px 16px -4px rgb(0 0 0 / 0.55), 0 18px 48px -8px rgb(0 0 0 / 0.65);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0a0a0b;
+  --surface: #121319;
+  --surface-hover: #1a1c23;
+  --surface-sunken: #060607;
+  --border: #23252e;
+  --border-strong: #343846;
+
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+
+  --primary: #818cf8;
+  --primary-hover: #a5b4fc;
+  --primary-fg: #1e1b4b;
+  --primary-subtle: #1c1b3a;
+  --primary-subtle-fg: #c7d2fe;
+
+  --accent: #22d3ee;
+  --accent-hover: #67e8f9;
+  --accent-fg: #083344;
+  --accent-subtle: #0b2b33;
+  --accent-subtle-fg: #67e8f9;
+
+  --destructive: #ef4444;
+  --destructive-hover: #f87171;
+  --destructive-fg: #2a0d0d;
+  --destructive-subtle: #2c1516;
+  --destructive-subtle-fg: #fca5a5;
+
+  --success: #34d399;
+  --success-subtle: #0f2a22;
+  --success-subtle-fg: #6ee7b7;
+
+  --warning: #fbbf24;
+  --warning-subtle: #2a2110;
+  --warning-subtle-fg: #fcd34d;
+
+  --info: #60a5fa;
+  --info-subtle: #16233a;
+  --info-subtle-fg: #93c5fd;
+
+  --ring: #22d3ee;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+  --shadow-md: 0 2px 6px -1px rgb(0 0 0 / 0.6), 0 6px 16px -3px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 6px 16px -4px rgb(0 0 0 / 0.55), 0 18px 48px -8px rgb(0 0 0 / 0.65);
+}
+
+/* == Scales ================================================================
+   Theme-independent. Tailwind's own spacing base is 4px, so `p-1 p-2 p-3 p-4
+   p-6 p-8 p-12 p-16` already land on exactly the eight steps below and are
+   what components should use; these names exist for the few places that need
+   a raw CSS length. */
+
+:root {
+  /* The brand cyan, at full saturation. DECORATIVE AND ICON FILLS ONLY -
+     never text, and never the only thing carrying a meaning.
+
+     It is 2.6:1 on the light background, under the 3:1 that even a meaningful
+     graphic needs, so it must always sit beside a text label saying the same
+     thing. If an icon has to stand on its own, use --accent.
+
+     Deliberately one value for both themes rather than a light/dark pair: this
+     is a brand constant, not a surface colour. It reads as the same cyan on
+     white as it does on near-black, where it measures 7.4:1. */
+  --accent-vivid: #06b6d4; /* cyan-500 */
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+}
+
+/* == Tailwind mapping ======================================================
+   `inline` is load-bearing: it makes Tailwind emit `var(--surface)` into the
+   utility instead of resolving the value at build time, which is the whole
+   reason one stylesheet can carry two themes.
+
+   The radius and shadow scales are declared here rather than above because
+   Tailwind reads them straight from `@theme` - `rounded-md` and `shadow-lg`
+   are these values, not Tailwind's defaults. */
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-fg: var(--primary-fg);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-primary-subtle-fg: var(--primary-subtle-fg);
+
+  --color-accent: var(--accent);
+  --color-accent-vivid: var(--accent-vivid);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-accent-subtle-fg: var(--accent-subtle-fg);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-hover: var(--destructive-hover);
+  --color-destructive-fg: var(--destructive-fg);
+  --color-destructive-subtle: var(--destructive-subtle);
+  --color-destructive-subtle-fg: var(--destructive-subtle-fg);
+
+  --color-success: var(--success);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-subtle-fg: var(--success-subtle-fg);
+
+  --color-warning: var(--warning);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-subtle-fg: var(--warning-subtle-fg);
+
+  --color-info: var(--info);
+  --color-info-subtle: var(--info-subtle);
+  --color-info-subtle-fg: var(--info-subtle-fg);
+
+  --color-ring: var(--ring);
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+    monospace;
+}

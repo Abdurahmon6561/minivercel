@@ -96,7 +96,7 @@ export function NewProject({ me, onDeployed }: { me: Me | null; onDeployed: () =
           disabled={busy}
           placeholder="My portfolio"
           maxLength={120}
-          className="w-full rounded-md border border-edge-bright bg-panel px-4 py-2.5 text-text placeholder:text-faint focus:border-accent focus:outline-none disabled:opacity-50"
+          className="w-full rounded-md border border-edge-bright bg-panel px-4 py-2.5 text-text placeholder:text-faint focus:border-primary focus:outline-none disabled:opacity-50"
         />
         <span className="mt-2 block text-xs text-faint">
           {name ? (
@@ -120,7 +120,7 @@ export function NewProject({ me, onDeployed }: { me: Me | null; onDeployed: () =
           <p className="font-mono text-sm break-all text-muted">{file?.name}</p>
           <div className="mx-auto mt-6 h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-edge">
             <div
-              className="h-full bg-accent transition-[width] duration-200"
+              className="h-full bg-primary transition-[width] duration-200"
               style={{ width: `${Math.round((progress ?? 0) * 100)}%` }}
             />
           </div>

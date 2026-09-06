@@ -2,6 +2,7 @@ import { Link, NavLink, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
 
 import { useAuth } from "../auth/AuthProvider";
+import { ThemeToggle } from "./ui/theme-toggle";
 import { formatBytes } from "../lib/format";
 import type { Me } from "../lib/api";
 
@@ -9,7 +10,7 @@ function QuotaBar({ me }: { me: Me }) {
   const { bytes_used: used, bytes_limit: limit } = me.usage;
   const fraction = limit ? Math.min(used / limit, 1) : 0;
   const tone =
-    fraction > 0.9 ? "bg-failed" : fraction > 0.7 ? "bg-pending" : "bg-accent";
+    fraction > 0.9 ? "bg-failed" : fraction > 0.7 ? "bg-pending" : "bg-primary";
 
   return (
     <div className="flex items-center gap-3" title="Storage used across all projects">
@@ -39,13 +40,13 @@ export function Layout({ children, me }: { children: ReactNode; me: Me | null })
     <div className="min-h-screen">
       <header className="border-b border-edge">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-4 px-6 py-4">
-          <Link to="/" className="flex items-center gap-2 text-text">
+          <Link to="/projects" className="flex items-center gap-2 text-text">
             <span aria-hidden="true">▲</span>
-            <span className="font-mono text-sm tracking-tight">minivercel</span>
+            <span className="text-sm font-semibold tracking-tight">Dropbin</span>
           </Link>
 
           <nav className="flex items-center gap-1">
-            <NavLink to="/" end className={linkClass}>
+            <NavLink to="/projects" end className={linkClass}>
               Projects
             </NavLink>
             <NavLink to="/new" className={linkClass}>
@@ -64,6 +65,7 @@ export function Layout({ children, me }: { children: ReactNode; me: Me | null })
                 {me.github.login ?? "github"}
               </span>
             )}
+            <ThemeToggle />
             <span className="hidden text-sm text-muted md:inline">
               {session?.user?.email}
             </span>

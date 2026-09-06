@@ -7,7 +7,11 @@ subdomains, all under one wildcard certificate:
                                                     /health, /docs, /redoc,
                                                     /openapi.json)
     Host: app.{SITE_DOMAIN}     -> the dashboard  (static files, SPA)
-    Host: {SITE_DOMAIN}         -> 301 to https://app.{SITE_DOMAIN}
+    Host: {SITE_DOMAIN}         -> the same dashboard bundle. The apex used to
+                                    301 here; it now serves the build, and the
+                                    React router decides what the path means -
+                                    `/` is the marketing landing on the apex and
+                                    a redirect into the dashboard on `app.`.
     Host: {slug}.{SITE_DOMAIN}  -> that project's live site, same resolution
                                     as GET /s/{slug}/... today
     anything else                -> 404
@@ -38,7 +42,7 @@ from typing import Callable
 
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
-from starlette.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
+from starlette.responses import FileResponse, PlainTextResponse, Response
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .config import Settings
@@ -215,13 +219,6 @@ class HostRoutingMiddleware:
         domain = settings.site_domain
         path = scope["path"]
 
-        if host == domain:
-            response: Response = RedirectResponse(
-                "https://app.%s%s" % (domain, path or "/"), status_code=301
-            )
-            await response(scope, receive, send)
-            return
-
         if host == "api." + domain:
             if _is_api_path(path):
                 await self._app(scope, receive, send)
@@ -229,7 +226,18 @@ class HostRoutingMiddleware:
                 await _not_found()(scope, receive, send)
             return
 
-        if host == "app." + domain:
+        if host in (domain, "app." + domain):
+            # One bundle, two hosts. The apex is the marketing landing and the
+            # subdomain is the dashboard, but that split lives in the React
+            # router, not here - serving different bytes per host would mean two
+            # builds and two caches for one application.
+            #
+            # Note for whoever deploys this: browsers cache the 301 this branch
+            # used to return, and nothing on the server can revoke that. Anyone
+            # who visited the apex before this shipped keeps landing on
+            # app.{SITE_DOMAIN} until their cache expires - where the app now
+            # redirects them into the dashboard, so they are not broken, just
+            # not shown the landing.
             await DashboardStatic(settings.dashboard_dist_dir)(scope, receive, send)
             return
 

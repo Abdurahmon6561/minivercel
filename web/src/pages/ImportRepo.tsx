@@ -103,7 +103,7 @@ export function ImportRepo({ me, onImported }: { me: Me | null; onImported: () =
             onChange={(event) => setManual(event.target.value)}
             placeholder="owner/name"
             disabled={busy !== null}
-            className="w-full rounded-md border border-edge-bright bg-panel px-4 py-2.5 font-mono text-sm text-text placeholder:text-faint focus:border-accent focus:outline-none disabled:opacity-50"
+            className="w-full rounded-md border border-edge-bright bg-panel px-4 py-2.5 font-mono text-sm text-text placeholder:text-faint focus:border-primary focus:outline-none disabled:opacity-50"
           />
         </label>
         <label className="w-40">
@@ -115,7 +115,7 @@ export function ImportRepo({ me, onImported }: { me: Me | null; onImported: () =
             onChange={(event) => setBranch(event.target.value)}
             placeholder="default"
             disabled={busy !== null}
-            className="w-full rounded-md border border-edge-bright bg-panel px-4 py-2.5 font-mono text-sm text-text placeholder:text-faint focus:border-accent focus:outline-none disabled:opacity-50"
+            className="w-full rounded-md border border-edge-bright bg-panel px-4 py-2.5 font-mono text-sm text-text placeholder:text-faint focus:border-primary focus:outline-none disabled:opacity-50"
           />
         </label>
         <Button

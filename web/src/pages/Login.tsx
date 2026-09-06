@@ -12,7 +12,7 @@ export function Login() {
           <div className="mb-5 text-4xl leading-none" aria-hidden="true">
             ▲
           </div>
-          <h1 className="font-mono text-xl tracking-tight text-text">minivercel</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-text">Dropbin</h1>
           <p className="mt-3 text-sm leading-relaxed text-muted">
             Upload a zip of static files, get a public URL.
           </p>

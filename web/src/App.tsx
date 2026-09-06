@@ -5,6 +5,8 @@ import { useAuth } from "./auth/AuthProvider";
 import { ErrorBanner, Spinner } from "./components/Bits";
 import { Layout } from "./components/Layout";
 import { api, type Me } from "./lib/api";
+import { isDashboardHost } from "./lib/host";
+import { Landing } from "./pages/Landing";
 import { Login } from "./pages/Login";
 import { NewProject } from "./pages/NewProject";
 import { ProjectDetail } from "./pages/ProjectDetail";
@@ -21,7 +23,31 @@ function Misconfigured({ message }: { message: string }) {
   );
 }
 
-export function App() {
+/**
+ * What `/` means depends on the host, because both serve this same bundle.
+ *
+ *   getdropbin.xyz       the landing, signed in or not - someone who typed the
+ *                        apex came for the marketing page, and the header
+ *                        offers them a way through to the dashboard
+ *   app.getdropbin.xyz   never a page of its own; a redirect to wherever the
+ *                        session says they belong
+ */
+function Root() {
+  const { session, loading } = useAuth();
+
+  if (!isDashboardHost()) return <Landing />;
+
+  // Only the dashboard host waits. The redirect target depends on the session,
+  // and navigating before it resolves would bounce a signed-in user through
+  // /login - which on the OAuth return would also discard the URL fragment
+  // supabase-js reads the session out of.
+  if (loading) return <div className="min-h-screen bg-bg" />;
+
+  return <Navigate to={session ? "/projects" : "/login"} replace />;
+}
+
+/** Everything behind the marketing page: needs config, auth, and the header. */
+function Dashboard() {
   const { session, loading } = useAuth();
   const [me, setMe] = useState<Me | null>(null);
 
@@ -62,13 +88,13 @@ export function App() {
   return (
     <Layout me={me}>
       <Routes>
-        <Route path="/" element={<Projects />} />
+        <Route path="/projects" element={<Projects />} />
         <Route path="/new" element={<NewProject me={me} onDeployed={refreshMe} />} />
         <Route
           path="/p/:slug"
           element={<ProjectDetail me={me} onChanged={refreshMe} />}
         />
-        <Route path="/login" element={<Navigate to="/" replace />} />
+        <Route path="/login" element={<Navigate to="/projects" replace />} />
         <Route
           path="*"
           element={
@@ -79,5 +105,17 @@ export function App() {
         />
       </Routes>
     </Layout>
+  );
+}
+
+export function App() {
+  return (
+    <Routes>
+      {/* `/` is matched here so the landing renders without the config check,
+          the auth gate, or the header - none of which it needs, and all of
+          which would delay its first paint. */}
+      <Route path="/" element={<Root />} />
+      <Route path="*" element={<Dashboard />} />
+    </Routes>
   );
 }

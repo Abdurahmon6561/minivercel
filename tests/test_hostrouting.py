@@ -150,12 +150,39 @@ async def test_app_host_serves_the_built_dashboard(client, subdomain, tmp_path):
 # -- getdropbin.xyz (bare) -----------------------------------------------------
 
 
-async def test_bare_domain_redirects_to_the_dashboard(client, subdomain):
-    response = await client.get(
-        "/pricing", headers={"Host": "getdropbin.xyz"}, follow_redirects=False
+async def test_bare_domain_serves_the_dashboard_bundle(client, subdomain, tmp_path):
+    """The apex serves the build rather than redirecting to app.{SITE_DOMAIN}.
+
+    It is the same bundle the app subdomain gets, byte for byte, including the
+    SPA fallback: the apex renders the marketing landing at `/`, and which page
+    a path means is decided by the React router inside that one build.
+    """
+    index = tmp_path / "index.html"
+    index.write_text("<!doctype html><title>dash</title>")
+
+    from dataclasses import replace
+
+    from app.config import get_settings
+    from app.main import app
+
+    app.dependency_overrides[get_settings] = lambda: replace(
+        subdomain, dashboard_dist_dir=str(tmp_path)
     )
-    assert response.status_code == 301
-    assert response.headers["location"] == "https://app.getdropbin.xyz/pricing"
+    try:
+        root = await client.get(
+            "/", headers={"Host": "getdropbin.xyz"}, follow_redirects=False
+        )
+        assert root.status_code == 200
+        assert b"dash" in root.content
+
+        # Any unknown path falls back to the shell, same as on app.{SITE_DOMAIN}.
+        deep = await client.get(
+            "/pricing", headers={"Host": "getdropbin.xyz"}, follow_redirects=False
+        )
+        assert deep.status_code == 200
+        assert b"dash" in deep.content
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
 
 
 # -- {slug}.getdropbin.xyz -----------------------------------------------------

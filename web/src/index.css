@@ -1,46 +1,65 @@
 @import "tailwindcss";
+@import "./styles/tokens.css";
 
-/* Dark, monospace for URLs and hashes, generous whitespace (SPEC.md Phase 2).
-   No component library - these are design tokens, not components. */
-@theme {
-  --color-ink: #08080b;
-  --color-panel: #0e0e13;
-  --color-edge: #1e1e27;
-  --color-edge-bright: #2e2e3b;
-  --color-text: #e8e8ee;
-  --color-muted: #8b8b9c;
-  --color-faint: #5a5a6b;
+/* ---------------------------------------------------------------------------
+   Legacy token aliases.
 
-  --color-ready: #34d399;
-  --color-pending: #fbbf24;
-  --color-failed: #f87171;
-  --color-accent: #7dd3fc;
+   The pre-redesign pages are written against `bg-ink`, `border-edge`,
+   `text-ready` and friends. Rather than rewrite every page at once, those names
+   are pointed at the new tokens, so screens that have not been redesigned yet
+   are still theme-aware and still legible.
 
-  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", Menlo,
-    Consolas, monospace;
+   The old `accent` is not aliased here - it meant "the one highlight colour",
+   which is now `primary`, and the name has been taken by the real second accent
+   in tokens.css. Those usages were renamed to `-primary` in place instead.
+
+   `faint` IS aliased, onto muted, because the token it named was removed for
+   failing contrast (2.5:1). Pointing it at muted means the old pages get the
+   accessible colour immediately rather than waiting their turn in the redesign;
+   the visual hierarchy those pages wanted from a third weight is gone, but they
+   are being rewritten anyway.
+
+   This whole block is deleted once the last page is migrated. Do not use these
+   names in new code.
+   --------------------------------------------------------------------------- */
+@theme inline {
+  --color-ink: var(--bg);
+  --color-panel: var(--surface);
+  --color-edge: var(--border);
+  --color-edge-bright: var(--border-strong);
+  --color-ready: var(--success);
+  --color-pending: var(--warning);
+  --color-failed: var(--destructive);
+  --color-faint: var(--text-muted);
 }
 
 html {
-  color-scheme: dark;
-  background-color: var(--color-ink);
+  background-color: var(--bg);
 }
 
 body {
   margin: 0;
-  background-color: var(--color-ink);
-  color: var(--color-text);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Inter's tabular figures for anything that lines up in a column - sizes,
+     durations, counts - without having to opt in per element. */
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
-/* Focus that is visible without being loud. Keyboard users need this and the
-   default dark-on-dark ring is not enough. */
+/* Focus that is visible without being loud. Keyboard users need this, and the
+   browser default is not reliable on either of our surface colours. */
 :focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
   border-radius: 2px;
 }
 
+/* A theme switch should not animate: transitioning every colour on the page at
+   once is expensive and reads as a smear rather than a transition. Components
+   opt into transitions on their own properties instead. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
