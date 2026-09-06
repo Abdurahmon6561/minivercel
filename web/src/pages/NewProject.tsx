@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { ErrorBanner, Mono, Panel } from "../components/Bits";
 import { DropZone } from "../components/DropZone";
@@ -24,7 +24,13 @@ export function NewProject({ me, onDeployed }: { me: Me | null; onDeployed: () =
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [source, setSource] = useState<"zip" | "github">("zip");
+  // The projects empty state offers two distinct paths, so it links here with
+  // the tab it means: ?from=github lands on the importer rather than making the
+  // user pick again after they already did.
+  const [params] = useSearchParams();
+  const [source, setSource] = useState<"zip" | "github">(
+    params.get("from") === "github" ? "github" : "zip",
+  );
   const slug = slugify(name);
   const slugIsUsable = !name || slug.length >= 3;
   const busy = progress !== null;
