@@ -13,7 +13,7 @@ import {
 
 import { DangerZone } from "../components/project/DangerZone";
 import { DeploymentsTab } from "../components/project/DeploymentsTab";
-import { GitHubPanel } from "../components/GitHubPanel";
+import { GitHubTab } from "../components/project/GitHubTab";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { Skeleton } from "../components/ui/skeleton";
@@ -333,18 +333,7 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
           </TabsContent>
 
           <TabsContent value="github">
-            {project.repo_full_name ? (
-              // Still the pre-redesign panel; rebuilt in 6b.
-              <GitHubPanel project={project} onChanged={() => load({ quiet: true })} />
-            ) : (
-              <Card className="px-6 py-14 text-center">
-                <h3 className="text-base font-semibold text-text">Not connected to GitHub</h3>
-                <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">
-                  This project was created from a zip upload. Importing a repository
-                  creates a new project rather than attaching one to this.
-                </p>
-              </Card>
-            )}
+            <GitHubTab project={project} onChanged={() => load({ quiet: true })} />
           </TabsContent>
 
           <TabsContent value="settings">
