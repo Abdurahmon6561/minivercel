@@ -24,6 +24,7 @@ from ..gitops import (
     validate_build_settings,
 )
 from ..github import GitHubError, split_repo
+from ..projectops import delete_project_fully
 from ..store import Conflict, is_valid_slug, slugify
 from ..urls import preview_url, site_url
 
@@ -327,46 +328,16 @@ async def delete_project(
     user: User = Depends(require_user),
     settings: Settings = Depends(get_settings),
 ):
-    """Delete the webhook, then every storage object, then the row.
+    """Remove the GitHub wiring, the storage objects, and the row.
 
-    That order is deliberate. Storage is NOT covered by `ON DELETE CASCADE` -
-    the database knows nothing about the bucket - so dropping the row first
-    would orphan every object with no remaining record of which keys to remove,
-    against a 1 GB quota. And a webhook left registered on a deleted project
-    delivers pushes to a 401 for ever.
+    The ordering and its reasoning live in app/projectops.py, which deleting an
+    account also uses - one project deleted from here and one deleted as part
+    of a whole account must clean up identically.
     """
     store = get_store()
     project = await store.get_owned_project(user.id, slug)
     if project is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown project.")
 
-    # 1. The webhook, and any build wiring in the user's repository.
-    if project.get("repo_full_name"):
-        try:
-            client = await client_for_user(store, settings, user.id)
-            owner, name = split_repo(project["repo_full_name"])
-            try:
-                if project.get("webhook_id"):
-                    await client.delete_webhook(owner, name, int(project["webhook_id"]))
-                if project.get("builds_enabled"):
-                    # Otherwise a workflow keeps firing at a project that is gone.
-                    await disable_builds(store, settings, project)
-            finally:
-                await client.aclose()
-        except (GitOpsError, GitHubError) as exc:
-            # Not fatal: the user asked us to delete their project, and a
-            # revoked GitHub token must not make that impossible.
-            log.warning("could not clean up GitHub for %s: %s", slug, exc)
-
-    # 2. Every storage object for every deployment.
-    deployments = await store.list_deployments(project["id"], limit=500)
-    for deployment in deployments:
-        try:
-            await store.db.remove_prefix(deployment["id"])
-        except Exception:  # pragma: no cover - keep deleting the rest
-            log.exception("could not remove objects for deployment %s", deployment["id"])
-
-    # 3. The row.
-    await store.delete_project(user.id, project["id"])
-    project_cache.invalidate(slug)
+    await delete_project_fully(store, settings, user.id, project)
     return None

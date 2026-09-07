@@ -18,6 +18,7 @@ from ..auth import User, require_user
 from ..config import Settings, get_settings
 from ..crypto import EncryptionUnavailable, encrypt
 from ..deps import get_store
+from ..projectops import delete_project_fully
 
 log = logging.getLogger("minivercel.me")
 
@@ -112,4 +113,51 @@ async def store_github_token(
 async def forget_github_token(user: User = Depends(require_user)):
     await get_store().delete_github_token(user.id)
     log.info("removed GitHub token for %s", user.id)
+    return None
+
+
+@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_account(
+    user: User = Depends(require_user),
+    settings: Settings = Depends(get_settings),
+):
+    """Delete this account and everything belonging to it.
+
+    Scoped by `user.id` from the verified token throughout, so there is no
+    identifier to pass and nothing to confuse: an account can only ever delete
+    itself. The dashboard asks the user to type their email first; that is
+    friction, not authorisation, and this endpoint does not check it.
+
+    The order matters, and it runs outermost-first so that a failure part way
+    through never leaves something pointing at something that is gone:
+
+      1. Every project, through the same path a single project delete takes -
+         GitHub webhook and build wiring, then storage objects, then the row.
+         Environment variables ride along on the row: project_env_vars is
+         ON DELETE CASCADE.
+      2. The stored GitHub token.
+      3. The Supabase auth user.
+
+    Step 3 is last on purpose. It is the only irreversible one, and doing it
+    first would revoke the very session the earlier steps are authorised by,
+    leaving projects and webhooks behind with nobody able to reach them.
+
+    GitHub failures are logged and stepped over rather than raised - see
+    projectops.delete_project_fully. Someone whose token was revoked, or who
+    lost admin on a repository, must still be able to close their account; the
+    worst case is a webhook left pointing at a project id that 404s, which is
+    strictly better than an account that cannot be deleted.
+    """
+    store = get_store()
+
+    projects = await store.list_projects(user.id)
+    for project in projects:
+        await delete_project_fully(store, settings, user.id, project)
+
+    await store.delete_github_token(user.id)
+
+    # Last, and the only step that cannot be undone.
+    await store.db.delete_auth_user(user.id)
+
+    log.info("deleted account %s (%d projects)", user.id, len(projects))
     return None

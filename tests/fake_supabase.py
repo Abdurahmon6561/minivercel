@@ -67,6 +67,9 @@ class FakeSupabase:
             "project_env_vars": [],
         }
         self.objects: dict[str, tuple[bytes, str]] = {}
+        #: Auth users this test asked us to delete, so a test can assert the
+        #: account itself went and not only its rows.
+        self.deleted_auth_users: list[str] = []
         self.upload_calls: list[tuple[str, str]] = []
         self.streams: list[_FakeStream] = []
 
@@ -218,6 +221,9 @@ class FakeSupabase:
                 updated.append(dict(row))
         return updated
 
+    async def delete_auth_user(self, user_id: str) -> None:
+        self.deleted_auth_users.append(user_id)
+
     async def delete(self, table: str, params: dict) -> None:
         keep, removed = [], []
         for row in self.tables[table]:
@@ -229,11 +235,17 @@ class FakeSupabase:
                 keep.append(row)
         self.tables[table] = keep
 
-        if table == "projects":  # emulate ON DELETE CASCADE
+        if table == "projects":
+            # Emulate ON DELETE CASCADE. Both of these are real constraints -
+            # deployments.project_id in db/001_init.sql and
+            # project_env_vars.project_id in db/007_env_vars.sql - and nothing
+            # in the application deletes either explicitly, so a fake that did
+            # not cascade would let a leak through unnoticed.
             gone = {row["id"] for row in removed}
-            self.tables["deployments"] = [
-                row for row in self.tables["deployments"] if row["project_id"] not in gone
-            ]
+            for child in ("deployments", "project_env_vars"):
+                self.tables[child] = [
+                    row for row in self.tables[child] if row["project_id"] not in gone
+                ]
 
     # -- Storage -----------------------------------------------------------
 

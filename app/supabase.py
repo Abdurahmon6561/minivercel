@@ -81,6 +81,25 @@ class SupabaseClient:
             )
         return response
 
+    # -- Auth admin --------------------------------------------------------
+
+    async def delete_auth_user(self, user_id: str) -> None:
+        """Remove the user from Supabase Auth.
+
+        The Auth Admin API, not PostgREST: `auth.users` is not exposed as a
+        table and must not be. This works only because the service_role key is
+        already on this client - which is exactly why non-negotiable #4 keeps
+        that key in this file and nowhere else.
+
+        A 404 is success. The account is gone either way, and a delete that
+        fails because the thing is already deleted is not a failure.
+        """
+        response = await self._client.delete("/auth/v1/admin/users/" + quote(user_id))
+        if response.status_code == 404:
+            log.info("auth user %s was already gone", user_id)
+            return
+        self._check(response, "delete auth user")
+
     # -- PostgREST ---------------------------------------------------------
 
     async def select(self, table: str, params: dict[str, Any]) -> list[dict]:
