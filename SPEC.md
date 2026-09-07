@@ -126,7 +126,12 @@ working and this melting.
    HTML, which must be proxied — see non-negotiable #2 for why Supabase leaves
    no alternative. Do not proxy anything else: it burns CPU and doubles
    bandwidth for no benefit, because Supabase serves every other type correctly.
-4. Rate limit: 60 requests/minute per IP. In-memory dict is fine at this scale.
+4. Rate limit: 600 requests/minute per IP. In-memory dict is fine at this scale.
+   This was 60 while the serving path was being abuse-tested against a
+   hand-written `index.html`. A real site breaks that immediately — one page
+   load of a React app with fonts, chunked JS and images is easily 30+
+   requests, so two refreshes returned 429 to ordinary visitors. The limit is a
+   floor for abuse, not a budget for normal browsing.
 
 ### Response headers
 Set on the deployment's `index.html` only, via a wrapper page if needed:

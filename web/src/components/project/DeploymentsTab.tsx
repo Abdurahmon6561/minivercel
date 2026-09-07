@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertCircle, ExternalLink, Rocket, ScrollText, Undo2 } from "lucide-react";
+import { AlertCircle, ExternalLink, Rocket, ScrollText, Undo2, Upload } from "lucide-react";
 
 import { Badge, StatusBadge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 import { Skeleton } from "../ui/skeleton";
+import { useToast } from "../ui/toast";
 import { api, type Deployment, type ProjectDetail } from "../../lib/api";
 import { exactTime, formatBytes, shortSha, timeAgo } from "../../lib/format";
 
@@ -106,15 +107,18 @@ function LogDialog({ deployment }: { deployment: Deployment }) {
 function PromoteDialog({
   deployment,
   slug,
+  projectUrl,
   onPromoted,
 }: {
   deployment: Deployment;
   slug: string;
+  projectUrl: string;
   onPromoted: () => Promise<void> | void;
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   async function promote() {
     setBusy(true);
@@ -122,6 +126,15 @@ function PromoteDialog({
     try {
       await api.promoteDeployment(slug, deployment.id);
       setOpen(false);
+      // Rolling back changes what the PROJECT url serves, but the only link on
+      // this row is "Preview", which opens the deployment-specific /_d/{id}/
+      // address. People clicked it, saw a URL that was not their site, and
+      // concluded the rollback had failed. Name the URL that actually changed.
+      toast({
+        title: "Rolled back",
+        description: "Your site now serves this deployment.",
+        action: { label: projectUrl.replace(/^https?:\/\//, ""), href: projectUrl },
+      });
       await onPromoted();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -173,10 +186,12 @@ function PromoteDialog({
 function Row({
   deployment,
   slug,
+  projectUrl,
   onChanged,
 }: {
   deployment: Deployment;
   slug: string;
+  projectUrl: string;
   onChanged: () => Promise<void> | void;
 }) {
   const ready = deployment.status === "ready";
@@ -195,7 +210,16 @@ function Row({
           {deployment.commit_sha ? (
             <span title={deployment.commit_sha}>{shortSha(deployment.commit_sha)}</span>
           ) : (
-            <span className="text-muted/70">zip upload</span>
+            // Not a missing commit - there was never going to be one. The icon
+            // makes the row read as "this came from a zip" rather than as a
+            // project with a broken commit field.
+            <span
+              className="inline-flex items-center gap-1.5"
+              title="Deployed from a zip upload, not a git commit"
+            >
+              <Upload className="size-3.5 shrink-0" aria-hidden="true" />
+              Uploaded ZIP
+            </span>
           )}
         </td>
         <td className="py-3 pr-4 text-right align-middle font-mono text-xs text-muted">
@@ -221,7 +245,12 @@ function Row({
             )}
             {deployment.has_build_log && <LogDialog deployment={deployment} />}
             {canPromote && (
-              <PromoteDialog deployment={deployment} slug={slug} onPromoted={onChanged} />
+              <PromoteDialog
+                deployment={deployment}
+                slug={slug}
+                projectUrl={projectUrl}
+                onPromoted={onChanged}
+              />
             )}
           </div>
         </td>
@@ -295,6 +324,7 @@ export function DeploymentsTab({
                   key={deployment.id}
                   deployment={deployment}
                   slug={project.slug}
+                  projectUrl={project.url}
                   onChanged={onChanged}
                 />
               ))}

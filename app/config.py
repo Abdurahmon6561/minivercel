@@ -91,7 +91,10 @@ def get_settings() -> Settings:
         max_files_per_deployment=_int("MAX_FILES_PER_DEPLOYMENT", 500),
         max_user_bytes=_int("MAX_USER_BYTES", 100 * MB),
         max_proxy_bytes=_int("MAX_PROXY_BYTES", 5 * MB),
-        serve_rate_limit_per_min=_int("SERVE_RATE_LIMIT_PER_MIN", 60),
+        # 600, not the 60 this started at: one page load of a real site is
+        # dozens of requests, so 60/min throttled ordinary visitors. See
+        # .env.example for the full reasoning.
+        serve_rate_limit_per_min=_int("SERVE_RATE_LIMIT_PER_MIN", 600),
         upload_rate_limit_per_hour=_int("UPLOAD_RATE_LIMIT_PER_HOUR", 20),
         cors_origins=_list("CORS_ORIGINS", "http://localhost:5173"),
     )

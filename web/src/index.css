@@ -76,6 +76,36 @@ button:not(:disabled),
   cursor: pointer;
 }
 
+/* ---------------------------------------------------------------------------
+   Toast motion.
+
+   Written out rather than pulled from tailwindcss-animate: that plugin is not
+   installed, so `animate-in` and `slide-in-from-right-2` compiled to nothing
+   and the toast just appeared. Two keyframes are cheaper than a dependency.
+
+   `@theme` registers them so `animate-toast-in` is a real utility. The
+   reduced-motion block below shortens them to nothing, like every other
+   animation here.
+   --------------------------------------------------------------------------- */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(0.75rem);
+  }
+}
+
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateX(0.75rem);
+  }
+}
+
+@theme {
+  --animate-toast-in: toast-in 160ms ease-out;
+  --animate-toast-out: toast-out 120ms ease-in forwards;
+}
+
 /* Focus that is visible without being loud. Keyboard users need this, and the
    browser default is not reliable on either of our surface colours. */
 :focus-visible {
