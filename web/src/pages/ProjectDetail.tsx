@@ -9,6 +9,7 @@ import { GitHubTab } from "../components/project/GitHubTab";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { Skeleton } from "../components/ui/skeleton";
+import { useToast } from "../components/ui/toast";
 import { DropZone } from "../components/DropZone";
 import { api, type Me, type ProjectDetail as Detail } from "../lib/api";
 import { exactTime, timeAgo } from "../lib/format";
@@ -109,6 +110,7 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { setProject: publishToSidebar } = useProjectChrome();
+  const { toast } = useToast();
 
   const [project, setProject] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -185,10 +187,13 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
     }
   }
 
-  async function remove() {
-    await api.deleteProject(slug);
+  async function afterDelete() {
     onChanged();
     navigate("/projects");
+    // Raised after navigating, and it survives because the toast provider sits
+    // above the router: the confirmation lands on the project list, which is
+    // where the project is now visibly absent.
+    toast({ title: `Project ${slug} has been deleted.` });
   }
 
   const retention = {
@@ -276,14 +281,16 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
         {/* Mounted only while its section is open, so the variable list is
             fetched when someone looks at it rather than on every page load. */}
         {tab === "environment" && <EnvironmentTab slug={project.slug} />}
-        {tab === "settings" && <SettingsTab project={project} />}
+        {tab === "settings" && (
+          <>
+            <SettingsTab project={project} />
+            {/* Settings only. It used to sit under every section, which put an
+                irreversible action one stray click from someone reading their
+                deployment history. */}
+            <DangerZone project={project} onDeleted={afterDelete} />
+          </>
+        )}
       </div>
-
-      <DangerZone
-        slug={project.slug}
-        deploymentCount={project.deployments.length}
-        onDelete={remove}
-      />
     </div>
   );
 }

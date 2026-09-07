@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AlertCircle, Trash2 } from "lucide-react";
 
 import { Button } from "../ui/button";
@@ -12,61 +12,97 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../ui/dialog";
+import { Input } from "../ui/input";
+import { Skeleton } from "../ui/skeleton";
+import { api, type ProjectDetail } from "../../lib/api";
 
 /**
  * Delete the project.
  *
- * A section under the tab content rather than a tab of its own: a destructive
- * action should be somewhere you can see it is there, not somewhere you have to
- * go looking for. It is below the fold of every tab, which is far enough.
+ * Lives at the bottom of Settings, and only there. It used to sit under every
+ * section, which put an irreversible action one stray click away from someone
+ * reading their deployment history. Settings is where a destructive project
+ * action is looked for.
  *
- * The confirmation asks for the slug to be typed. That is deliberate friction
- * for the one action here that cannot be undone - and it now takes the
- * project's encrypted environment variables with it, since project_env_vars
- * cascades on delete.
+ * The confirmation names what will actually be destroyed, counted when the
+ * dialog opens - the same pattern as deleting an account. A warning that says
+ * "and its deployments" is ignorable; one that says "4 deployments and their
+ * files" is not.
  */
 export function DangerZone({
-  slug,
-  deploymentCount,
-  envVarCount,
-  onDelete,
+  project,
+  onDeleted,
 }: {
-  slug: string;
-  deploymentCount: number;
-  envVarCount?: number;
-  onDelete: () => Promise<void>;
+  project: ProjectDetail;
+  /** Runs after a 204: navigates away and confirms. */
+  onDeleted: () => Promise<void> | void;
 }) {
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [envCount, setEnvCount] = useState<number | null>(null);
 
+  const slug = project.slug;
   const confirmed = typed.trim() === slug;
+  const deployments = project.deployments.length;
+
+  // The project payload carries its deployments, so only the variables need
+  // fetching - and only once someone is actually looking at the warning.
+  const loadEnvCount = useCallback(async () => {
+    setEnvCount(null);
+    try {
+      setEnvCount((await api.listEnvVars(slug)).length);
+    } catch {
+      // Not countable is not a reason to block a delete. Treat it as "none to
+      // mention" rather than showing an error nobody can act on.
+      setEnvCount(0);
+    }
+  }, [slug]);
+
+  useEffect(() => {
+    if (open) void loadEnvCount();
+  }, [open, loadEnvCount]);
 
   async function remove() {
     setBusy(true);
     setError(null);
     try {
-      await onDelete();
-      // Deliberately no setOpen(false): onDelete navigates away, and closing
-      // first would flash the page underneath.
+      await api.deleteProject(slug);
+      await onDeleted();
+      // Deliberately no setOpen(false) or setBusy(false): onDeleted navigates
+      // away, and resetting first would flash the page underneath.
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       setBusy(false);
     }
   }
 
+  const lines: string[] = [];
+  if (deployments) {
+    lines.push(
+      deployments === 1
+        ? "1 deployment and its files"
+        : `${deployments} deployments and their files`,
+    );
+  }
+  if (envCount) {
+    lines.push(
+      `${envCount} environment ${envCount === 1 ? "variable" : "variables"} (encrypted at rest)`,
+    );
+  }
+  if (project.repo_full_name && project.webhook_registered) {
+    lines.push(`The webhook in ${project.repo_full_name} on GitHub`);
+  }
+
   return (
-    <section className="mt-12 rounded-xl border border-destructive/30 bg-surface">
+    <section className="mt-10 rounded-xl border border-destructive/30 bg-surface">
       <div className="flex flex-wrap items-center justify-between gap-4 p-5">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-text">Delete this project</h2>
           <p className="mt-1 max-w-lg text-[13px] leading-relaxed text-muted">
-            Removes the project, its {deploymentCount}{" "}
-            {deploymentCount === 1 ? "deployment" : "deployments"}
-            {envVarCount ? ` and ${envVarCount} environment ${envVarCount === 1 ? "variable" : "variables"}` : ""}, and
-            the stored files. The public URL stops working immediately. This cannot be
-            undone.
+            Removes the project and everything it holds. The public URL stops
+            working immediately. This cannot be undone.
           </p>
         </div>
 
@@ -90,32 +126,57 @@ export function DangerZone({
 
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Delete {slug}?</DialogTitle>
+              <DialogTitle>
+                Delete <span className="font-mono text-sm">{slug}</span>?
+              </DialogTitle>
               <DialogDescription>
-                Everything this project holds goes with it — every deployment, the
-                stored files
-                {envVarCount ? ", and its environment variables" : ""}. The public URL
-                stops resolving immediately and cannot be reclaimed.
+                This removes everything below, permanently.
               </DialogDescription>
             </DialogHeader>
 
-            <label className="block">
+            {envCount === null ? (
+              <div className="mt-4 space-y-2">
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-4 w-1/2" />
+              </div>
+            ) : lines.length > 0 ? (
+              <ul className="mt-4 space-y-1.5 rounded-md border border-destructive/25 bg-destructive-subtle px-4 py-3 text-[13px] leading-relaxed text-destructive-subtle-fg">
+                {lines.map((line) => (
+                  <li key={line} className="flex gap-2">
+                    <span aria-hidden="true">•</span>
+                    <span className="min-w-0">{line}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            <p className="mt-4 text-[13px] leading-relaxed text-muted">
+              <span className="font-mono text-xs text-text">
+                {project.url.replace(/^https?:\/\//, "")}
+              </span>{" "}
+              stops working immediately and the name cannot be reclaimed.
+            </p>
+
+            <label className="mt-5 block">
               <span className="mb-2 block text-[13px] text-muted">
                 Type <span className="font-mono text-xs text-text">{slug}</span> to
                 confirm
               </span>
-              <input
+              <Input
                 value={typed}
                 onChange={(event) => setTyped(event.target.value)}
                 autoComplete="off"
                 spellCheck={false}
                 disabled={busy}
-                className="w-full rounded-md border border-border-strong bg-bg px-3 py-2 font-mono text-sm text-text placeholder:text-muted/60 focus-visible:border-ring focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
+                className="font-mono text-sm"
               />
             </label>
 
             {error && (
-              <p className="mt-4 flex items-start gap-2 rounded-md border border-destructive/35 bg-destructive-subtle px-3 py-2.5 text-[13px] text-destructive-subtle-fg">
+              <p
+                role="alert"
+                className="mt-4 flex items-start gap-2 rounded-md border border-destructive/35 bg-destructive-subtle px-3 py-2.5 text-[13px] text-destructive-subtle-fg"
+              >
                 <AlertCircle className="mt-px size-4 shrink-0" aria-hidden="true" />
                 {error}
               </p>

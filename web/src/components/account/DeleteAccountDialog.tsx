@@ -87,7 +87,9 @@ function Consequences({ summary }: { summary: AccountSummary }) {
   }
   if (summary.deployments) {
     lines.push(
-      `${summary.deployments} ${summary.deployments === 1 ? "deployment" : "deployments"} and their files`,
+      summary.deployments === 1
+        ? "1 deployment and its files"
+        : `${summary.deployments} deployments and their files`,
     );
   }
   if (summary.envVars) {
