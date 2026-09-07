@@ -7,6 +7,7 @@ import { Layout } from "./components/Layout";
 import { api, type Me } from "./lib/api";
 import { isDashboardHost } from "./lib/host";
 import { ProjectChromeProvider } from "./lib/project-chrome";
+import { Account } from "./pages/Account";
 import { Landing } from "./pages/Landing";
 import { Login } from "./pages/Login";
 import { NewProject } from "./pages/NewProject";
@@ -123,6 +124,7 @@ function Dashboard() {
       <Layout me={me}>
         <Routes>
         <Route path="/projects" element={<Projects />} />
+        <Route path="/account" element={<Account me={me} onChanged={refreshMe} />} />
         {/* Before /projects/:slug, or "new" would be read as a slug. */}
         <Route
           path="/projects/new"

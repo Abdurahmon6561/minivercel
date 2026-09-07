@@ -266,6 +266,18 @@ export const api = {
       { method: "DELETE" },
     ),
 
+  /**
+   * Forget the stored GitHub token.
+   *
+   * Clears OUR copy. It does not revoke the authorisation on GitHub's side -
+   * only the user can do that, from their GitHub settings - so the UI says so
+   * rather than implying the grant is gone.
+   */
+  forgetGithubToken: () => request<void>("/api/me/github-token", { method: "DELETE" }),
+
+  /** Close the account. Everything, irreversibly. */
+  deleteAccount: () => request<void>("/api/me", { method: "DELETE" }),
+
   listGithubRepos: () => request<GithubRepo[]>("/api/me/github/repos"),
 
   importRepo: (repo: string, branch?: string) =>

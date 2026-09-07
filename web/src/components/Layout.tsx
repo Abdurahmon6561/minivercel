@@ -6,7 +6,6 @@ import {
   ExternalLink,
   FolderKanban,
   GitBranch,
-  LogOut,
   Plus,
   Rocket,
   UserRound,
@@ -153,13 +152,12 @@ function ProjectNav({ slug }: { slug: string }) {
 }
 
 /**
- * Theme, identity and sign out.
+ * Theme and identity.
  *
- * The avatar is a plain block for now, not a link: /account does not exist
- * yet. When it does it becomes the link, and this Sign out button moves onto
- * that page. Until then sign out has to live somewhere reachable - it used to
- * be the only item in an account dropdown, and removing that dropdown without
- * this would have made signing out impossible.
+ * The avatar is the way to /account, which is where signing out now lives.
+ * The Sign out button that stood here between the dropdown being removed and
+ * /account existing has served its purpose and is gone: two ways to sign out,
+ * one of them a bare icon in a corner, is worse than one clearly labelled.
  */
 function SidebarFooter({
   me,
@@ -173,43 +171,37 @@ function SidebarFooter({
    */
   layout: "stacked" | "inline";
 }) {
-  const { session, signOut } = useAuth();
+  const { session } = useAuth();
   const email = me?.email ?? session?.user?.email ?? null;
-
-  const signOutButton = (
-    <Button
-      variant="ghost"
-      size="icon"
-      aria-label="Sign out"
-      title="Sign out"
-      onClick={() => void signOut()}
-    >
-      <LogOut />
-    </Button>
-  );
 
   if (layout === "inline") {
     return (
       <div className="flex items-center gap-2">
-        <Avatar email={email} />
+        <Link
+          to="/account"
+          aria-label={email ? `Account: ${email}` : "Account"}
+          className="rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <Avatar email={email} />
+        </Link>
         <ThemeToggle />
-        {signOutButton}
       </div>
     );
   }
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 px-1">
+      <Link
+        to="/account"
+        className="flex items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        aria-label={email ? `Account: ${email}` : "Account"}
+      >
         <Avatar email={email} />
         <span className="min-w-0 truncate text-[13px] text-muted" title={email ?? undefined}>
           {email ?? "Signed in"}
         </span>
-      </div>
-      <div className="flex items-center justify-between">
-        <ThemeToggle />
-        {signOutButton}
-      </div>
+      </Link>
+      <ThemeToggle />
     </div>
   );
 }
