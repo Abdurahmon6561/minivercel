@@ -109,6 +109,59 @@
      button is a ring nobody can see. */
   --ring: #0891b2; /* cyan-600 */
 
+  /* Warm accents - LANDING PAGE ONLY, and decorative there.
+     The one deliberate exception to a palette that is cool end to end. A
+     marketing page has a different job from a dashboard: it has to feel
+     inviting in the first second, and indigo-on-slate is competent rather than
+     warm. They belong in gradient washes, illustration fills and a highlighted
+     word in a display headline - never on a control, a status or a label. The
+     product itself stays cool.
+
+     One step down from the orange-500/pink-500 they are drawn from, because
+     those do not survive a light background: #f97316 is 2.68:1 on --bg, which
+     fails even the 3:1 a meaningful graphic needs.
+
+     MEASURED, on --bg:
+       --warm-orange  3.40:1   large text (>=24px) and graphics only
+       --warm-pink    4.39:1   large text and graphics only
+     Neither reaches AA's 4.5:1 for body copy, and neither is meant to carry
+     any. If a warm colour is ever needed for running text, orange-700 #c2410c
+     (4.95:1) and pink-700 #be185d (5.77:1) are the swaps.
+
+     Dark needs no such care - both clear 7:1 on a near-black ground. */
+  --warm-orange: #ea580c; /* orange-600 */
+  --warm-pink: #db2777; /* pink-600   */
+
+  /* Illustration ink - LANDING PAGE ONLY.
+     unDraw's line art is drawn for a white page: pale devices around a
+     near-black server rack. Mapping each of its greys to whichever token
+     looked closest was the first attempt and it broke the drawing, because
+     --text flips meaning between themes - the rack became a solid black block
+     in light and vanished into the page in dark.
+
+     So the greys map to a scale, not to individual tokens, and the scale is
+     defined by CONTRAST against --bg rather than by a mix percentage. The same
+     percentage of ink buys more apparent lightness climbing from black than it
+     does descending from white: 46% is 3.00:1 on the light ground but 4.35:1
+     on the dark one, which is why a rack tuned to look calm in light was the
+     loudest mass on the page in dark. The dark percentages below were solved
+     for, not guessed - each one reproduces its light counterpart's ratio.
+
+     MEASURED, against --bg, identical in both themes:
+       --illo-body     1.23:1   device bodies, the dominant fill
+       --illo-body-2   1.40:1   secondary panels
+       --illo-ring     1.68:1   the connecting circle
+       --illo-detail   2.27:1   screen furniture
+       --illo-deep     3.00:1   the server rack, the largest solid
+     Deliberately flatter than unDraw's own range: the rack has to read as a
+     chassis without competing with the headline beside it. The accent stays on
+     currentColor so it follows the section's text colour. */
+  --illo-body: color-mix(in srgb, var(--text) 10%, var(--bg));
+  --illo-body-2: color-mix(in srgb, var(--text) 16%, var(--bg));
+  --illo-ring: color-mix(in srgb, var(--text) 24%, var(--bg));
+  --illo-detail: color-mix(in srgb, var(--text) 36%, var(--bg));
+  --illo-deep: color-mix(in srgb, var(--text) 46%, var(--bg));
+
   /* Shadows: barely there in light, where the border does the separating. */
   --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.06);
   --shadow-md: 0 2px 4px -1px rgb(15 23 42 / 0.07), 0 4px 12px -2px rgb(15 23 42 / 0.08);
@@ -167,6 +220,18 @@
     --info-subtle: #16233a;
     --info-subtle-fg: #93c5fd;
 
+    /* Brighter on a near-black ground, where the light-theme values go muddy.
+       MEASURED on --bg: orange-400 8.7:1, pink-400 7.5:1. */
+    --warm-orange: #fb923c; /* orange-400 */
+    --warm-pink: #f472b6; /* pink-400   */
+
+    /* Solved to match the light ratios above, not eyeballed. */
+    --illo-body: color-mix(in srgb, var(--text) 9.7%, var(--bg));
+    --illo-body-2: color-mix(in srgb, var(--text) 14%, var(--bg));
+    --illo-ring: color-mix(in srgb, var(--text) 19.5%, var(--bg));
+    --illo-detail: color-mix(in srgb, var(--text) 27.7%, var(--bg));
+    --illo-deep: color-mix(in srgb, var(--text) 35.3%, var(--bg));
+
     --ring: #22d3ee; /* cyan-400 */
 
     /* Pronounced in dark: there is no ambient light, so depth has to be drawn
@@ -219,6 +284,15 @@
   --info: #60a5fa;
   --info-subtle: #16233a;
   --info-subtle-fg: #93c5fd;
+
+  --warm-orange: #fb923c;
+  --warm-pink: #f472b6;
+
+  --illo-body: color-mix(in srgb, var(--text) 9.7%, var(--bg));
+  --illo-body-2: color-mix(in srgb, var(--text) 14%, var(--bg));
+  --illo-ring: color-mix(in srgb, var(--text) 19.5%, var(--bg));
+  --illo-detail: color-mix(in srgb, var(--text) 27.7%, var(--bg));
+  --illo-deep: color-mix(in srgb, var(--text) 35.3%, var(--bg));
 
   --ring: #22d3ee;
 
@@ -288,6 +362,11 @@
   --color-accent-fg: var(--accent-fg);
   --color-accent-subtle: var(--accent-subtle);
   --color-accent-subtle-fg: var(--accent-subtle-fg);
+
+  /* Landing page only, and decorative there - washes, illustration fills and
+     one highlighted display word. Never a control, a status or a label. */
+  --color-warm-orange: var(--warm-orange);
+  --color-warm-pink: var(--warm-pink);
 
   --color-destructive: var(--destructive);
   --color-destructive-hover: var(--destructive-hover);
