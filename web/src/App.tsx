@@ -6,6 +6,7 @@ import { ErrorBanner, Spinner } from "./components/Bits";
 import { Layout } from "./components/Layout";
 import { api, type Me } from "./lib/api";
 import { isDashboardHost } from "./lib/host";
+import { ProjectChromeProvider } from "./lib/project-chrome";
 import { Landing } from "./pages/Landing";
 import { Login } from "./pages/Login";
 import { NewProject } from "./pages/NewProject";
@@ -116,8 +117,11 @@ function Dashboard() {
   }
 
   return (
-    <Layout me={me}>
-      <Routes>
+    // Above Layout: the sidebar it renders reads the current project from
+    // here, and the page that publishes it is inside.
+    <ProjectChromeProvider>
+      <Layout me={me}>
+        <Routes>
         <Route path="/projects" element={<Projects />} />
         {/* Before /projects/:slug, or "new" would be read as a slug. */}
         <Route
@@ -139,8 +143,9 @@ function Dashboard() {
             </div>
           }
         />
-      </Routes>
-    </Layout>
+        </Routes>
+      </Layout>
+    </ProjectChromeProvider>
   );
 }
 

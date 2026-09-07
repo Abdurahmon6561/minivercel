@@ -1,19 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import {
-  AlertCircle,
-  ArrowLeft,
-  Check,
-  Cog,
-  Copy,
-  ExternalLink,
-  GitBranch,
-  RotateCcw,
-  Rocket,
-  Upload,
-  Variable,
-  X,
-} from "lucide-react";
+import { AlertCircle, ArrowLeft, RotateCcw, Upload, X } from "lucide-react";
 
 import { DangerZone } from "../components/project/DangerZone";
 import { DeploymentsTab } from "../components/project/DeploymentsTab";
@@ -22,86 +9,46 @@ import { GitHubTab } from "../components/project/GitHubTab";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { Skeleton } from "../components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { DropZone } from "../components/DropZone";
 import { api, type Me, type ProjectDetail as Detail } from "../lib/api";
 import { exactTime, timeAgo } from "../lib/format";
+import { useProjectChrome } from "../lib/project-chrome";
 
-const TABS = [
-  { value: "deployments", label: "Deployments", Icon: Rocket },
-  { value: "github", label: "GitHub", Icon: GitBranch },
-  { value: "environment", label: "Environment", Icon: Variable },
-  { value: "settings", label: "Settings", Icon: Cog },
-] as const;
+/**
+ * The panel headings. The labels and icons for the nav itself live in
+ * components/Layout.tsx, which owns the sidebar - this page only needs to know
+ * which section it is showing and what to call it.
+ */
+const SECTION_TITLES = {
+  deployments: "Deployments",
+  github: "GitHub",
+  environment: "Environment",
+  settings: "Settings",
+} as const;
 
-type TabName = (typeof TABS)[number]["value"];
-const TAB_NAMES: readonly string[] = TABS.map((t) => t.value);
+type TabName = keyof typeof SECTION_TITLES;
+const TAB_NAMES: readonly string[] = Object.keys(SECTION_TITLES);
 
-function CopyUrlButton({ url }: { url: string }) {
-  const [copied, setCopied] = useState(false);
-
-  return (
-    <button
-      type="button"
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(url);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1600);
-        } catch {
-          // Clipboard access can be refused (insecure context, permissions).
-          // The URL is selectable text right beside this, so there is nothing
-          // to recover from - just do not claim success.
-        }
-      }}
-      className="rounded-sm p-1 text-muted transition-colors hover:bg-surface-hover hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      aria-label={copied ? "Copied" : "Copy URL"}
-    >
-      {copied ? (
-        <Check className="size-3.5 text-success" aria-hidden="true" />
-      ) : (
-        <Copy className="size-3.5" aria-hidden="true" />
-      )}
-    </button>
-  );
-}
-
-/** Mirrors the real two-column layout, so nothing jumps when data arrives. */
+/** Mirrors the panel, not the page: the sidebar is already on screen. */
 function DetailSkeleton() {
   return (
     <div>
-      <Skeleton className="h-4 w-24" />
-      <div className="mt-6 flex flex-col gap-6 md:flex-row md:gap-8">
-        <div className="w-full shrink-0 md:w-[220px]">
-          <Skeleton className="h-5 w-40" />
-          <Skeleton className="mt-2 h-3 w-48" />
-          <div className="my-4 h-px bg-border" />
-          <div className="flex gap-1 md:flex-col">
-            {Array.from({ length: 4 }, (_, index) => (
-              <Skeleton key={index} className="h-9 w-full md:w-full" />
-            ))}
-          </div>
-          <div className="mt-5 flex flex-col gap-2">
-            <Skeleton className="h-9 w-full" />
-            <Skeleton className="h-9 w-full" />
-          </div>
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <Card className="overflow-hidden">
-            {Array.from({ length: 5 }, (_, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-4 border-b border-border p-4 last:border-0"
-              >
-                <Skeleton className="h-5 w-20 rounded-full" />
-                <Skeleton className="h-3 w-16" />
-                <Skeleton className="ml-auto h-3 w-24" />
-              </div>
-            ))}
-          </Card>
-        </div>
+      <div className="flex items-center justify-between gap-3">
+        <Skeleton className="h-6 w-40" />
+        <Skeleton className="h-9 w-40" />
       </div>
+      <Card className="mt-6 overflow-hidden">
+        {Array.from({ length: 5 }, (_, index) => (
+          <div
+            key={index}
+            className="flex items-center gap-4 border-b border-border p-4 last:border-0"
+          >
+            <Skeleton className="h-5 w-20 rounded-full" />
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="ml-auto h-3 w-24" />
+          </div>
+        ))}
+      </Card>
     </div>
   );
 }
@@ -160,7 +107,8 @@ function SettingsTab({ project }: { project: Detail }) {
 export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () => void }) {
   const { slug = "" } = useParams();
   const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
+  const { setProject: publishToSidebar } = useProjectChrome();
 
   const [project, setProject] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -202,6 +150,14 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
       generation.current++;
     };
   }, [load]);
+
+  // The sidebar renders this project's name and URL. Clearing on unmount
+  // matters: without it the nav would still describe this project after
+  // navigating back to the list.
+  useEffect(() => {
+    publishToSidebar(project);
+    return () => publishToSidebar(null);
+  }, [project, publishToSidebar]);
 
   // AUTODEPLOY.md section 8: a push-triggered or import-triggered deploy runs in
   // a background task, so nothing in this tab knows when it finishes. Poll while
@@ -245,13 +201,22 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
 
   return (
     <div>
-      <Link
-        to="/projects"
-        className="inline-flex items-center gap-1.5 text-sm text-muted transition-colors hover:text-text"
-      >
-        <ArrowLeft className="size-3.5" aria-hidden="true" />
-        Projects
-      </Link>
+      {/* The project's name, URL and section nav are in the sidebar now, so
+          this column is only the panel. What used to be a second <aside> here
+          is what made the page read as two applications side by side. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="min-w-0 truncate text-xl font-semibold tracking-tight text-text">
+          {SECTION_TITLES[tab]}
+        </h1>
+        <Button
+          variant="primary"
+          icon={uploading ? <X /> : <Upload />}
+          disabled={progress !== null}
+          onClick={() => setUploading((open) => !open)}
+        >
+          {uploading ? "Cancel" : "New deployment"}
+        </Button>
+      </div>
 
       {error && (
         <div
@@ -272,132 +237,53 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
         </div>
       )}
 
-      {/* Radix's Root is the flex container itself, because the list and the
-          panels have to stay inside one Tabs context while sitting in two
-          different columns. */}
-      <Tabs
-        orientation="vertical"
-        value={tab}
-        onValueChange={(next) => {
-          // `replace` so four sidebar clicks do not become four back-button
-          // presses between here and the project list.
-          const updated = new URLSearchParams(params);
-          if (next === "deployments") updated.delete("tab");
-          else updated.set("tab", next);
-          setParams(updated, { replace: true });
-        }}
-        className="mt-6 flex flex-col gap-6 md:flex-row md:gap-8"
-      >
-        <aside className="w-full shrink-0 md:w-[220px]">
-          <div className="md:sticky md:top-6">
-            <h1
-              className="truncate text-base font-semibold tracking-tight text-text"
-              title={project.name}
-            >
-              {project.name}
-            </h1>
-
-            <div className="mt-1 flex items-center gap-1">
-              <a
-                href={project.url}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="inline-flex min-w-0 items-center gap-1 font-mono text-xs text-muted transition-colors hover:text-accent"
-                title={project.url}
-              >
-                <span className="truncate">{project.url.replace(/^https?:\/\//, "")}</span>
-                <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
-              </a>
-              <CopyUrlButton url={project.url} />
-            </div>
-
-            <div className="my-4 h-px bg-border" />
-
-            <TabsList aria-label="Project sections">
-              {TABS.map(({ value, label, Icon }) => (
-                <TabsTrigger key={value} value={value}>
-                  <Icon aria-hidden="true" />
-                  {label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-
-            <div className="mt-5 flex flex-col gap-2">
-              <Button
-                variant="primary"
-                block
-                icon={uploading ? <X /> : <Upload />}
-                disabled={progress !== null}
-                onClick={() => setUploading((open) => !open)}
-              >
-                {uploading ? "Cancel" : "New deployment"}
-              </Button>
-              <a href={project.url} target="_blank" rel="noreferrer noopener">
-                <Button variant="secondary" block icon={<ExternalLink />}>
-                  Open site
-                </Button>
-              </a>
-            </div>
-          </div>
-        </aside>
-
-        {/* min-w-0 so a wide deployments table scrolls inside its own container
-            instead of stretching this column past the viewport. */}
-        <div className="min-w-0 flex-1">
-          {(uploading || progress !== null) && (
-            <div className="mb-6">
-              {progress !== null ? (
-                <Card className="px-6 py-12 text-center">
-                  <div className="mx-auto h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-surface-hover">
-                    <div
-                      className="h-full bg-primary transition-[width] duration-200"
-                      style={{ width: `${Math.round(progress * 100)}%` }}
-                    />
-                  </div>
-                  <p className="mt-4 text-sm text-muted">
-                    {progress < 1
-                      ? `Uploading ${Math.round(progress * 100)}%`
-                      : "Validating and publishing…"}
-                  </p>
-                </Card>
-              ) : (
-                <DropZone onFile={upload} maxBytes={me?.usage.max_deployment_bytes} />
-              )}
-            </div>
+      {(uploading || progress !== null) && (
+        <div className="mt-6">
+          {progress !== null ? (
+            <Card className="px-6 py-12 text-center">
+              <div className="mx-auto h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-surface-hover">
+                <div
+                  className="h-full bg-primary transition-[width] duration-200"
+                  style={{ width: `${Math.round(progress * 100)}%` }}
+                />
+              </div>
+              <p className="mt-4 text-sm text-muted">
+                {progress < 1
+                  ? `Uploading ${Math.round(progress * 100)}%`
+                  : "Validating and publishing…"}
+              </p>
+            </Card>
+          ) : (
+            <DropZone onFile={upload} maxBytes={me?.usage.max_deployment_bytes} />
           )}
-
-          <TabsContent value="deployments">
-            <DeploymentsTab
-              project={project}
-              retention={retention}
-              onChanged={async () => {
-                await load({ quiet: true });
-                onChanged();
-              }}
-            />
-          </TabsContent>
-
-          <TabsContent value="github">
-            <GitHubTab project={project} onChanged={() => load({ quiet: true })} />
-          </TabsContent>
-
-          <TabsContent value="environment">
-            {/* Mounted only while the tab is open, so the list is fetched when
-                it is first looked at rather than on every project page load. */}
-            <EnvironmentTab slug={project.slug} />
-          </TabsContent>
-
-          <TabsContent value="settings">
-            <SettingsTab project={project} />
-          </TabsContent>
-
-          <DangerZone
-            slug={project.slug}
-            deploymentCount={project.deployments.length}
-            onDelete={remove}
-          />
         </div>
-      </Tabs>
+      )}
+
+      <div className="mt-6">
+        {tab === "deployments" && (
+          <DeploymentsTab
+            project={project}
+            retention={retention}
+            onChanged={async () => {
+              await load({ quiet: true });
+              onChanged();
+            }}
+          />
+        )}
+        {tab === "github" && (
+          <GitHubTab project={project} onChanged={() => load({ quiet: true })} />
+        )}
+        {/* Mounted only while its section is open, so the variable list is
+            fetched when someone looks at it rather than on every page load. */}
+        {tab === "environment" && <EnvironmentTab slug={project.slug} />}
+        {tab === "settings" && <SettingsTab project={project} />}
+      </div>
+
+      <DangerZone
+        slug={project.slug}
+        deploymentCount={project.deployments.length}
+        onDelete={remove}
+      />
     </div>
   );
 }
