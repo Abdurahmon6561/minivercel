@@ -13,8 +13,12 @@ import { slugGradient } from "../lib/gradient";
 
 function PageHeader() {
   return (
-    <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-      <h1 className="text-2xl font-semibold tracking-tight text-text">Projects</h1>
+    <div className="mb-10 flex flex-wrap items-end justify-between gap-5 border-b border-border pb-7">
+      <div>
+        <p className="text-xs font-semibold tracking-[0.13em] text-accent uppercase">Your workspace</p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-text">Projects</h1>
+        <p className="mt-2 text-sm text-muted">Every site you have deployed, in one place.</p>
+      </div>
       <Link to="/projects/new">
         <Button variant="primary" icon={<Plus />}>
           New project
@@ -29,16 +33,16 @@ function ProjectCard({ project }: { project: Project }) {
   const failed = last?.status === "failed";
 
   return (
-    <Card interactive className="flex flex-col overflow-hidden">
+    <Card interactive className="group flex flex-col overflow-hidden transition-transform hover:-translate-y-0.5">
       {/* Placeholder art until real screenshots exist. Purely decorative, so it
           is hidden from assistive tech - the project name is right below it. */}
       <div
         aria-hidden="true"
-        className="h-20 shrink-0 opacity-90"
+        className="h-24 shrink-0 opacity-90 transition-transform duration-300 group-hover:scale-[1.02]"
         style={{ background: slugGradient(project.slug) }}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col p-4">
+      <div className="flex min-w-0 flex-1 flex-col p-5">
         {/*
           The card is one link target with a second link inside it, which cannot
           be nested anchors. So the name owns the card via a stretched
@@ -65,7 +69,7 @@ function ProjectCard({ project }: { project: Project }) {
           <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
         </a>
 
-        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 pt-3">
+        <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border pt-3.5">
           <StatusBadge status={last?.status} />
           <span className="text-xs text-muted" title={exactTime(last?.created_at)}>
             {last ? timeAgo(last.created_at) : "never deployed"}

@@ -17,7 +17,7 @@ export function Login() {
   const { signIn, error } = useAuth();
 
   return (
-    <div className="flex min-h-screen flex-col bg-bg">
+    <div className="relative flex min-h-screen flex-col overflow-hidden bg-bg">
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-5xl items-center gap-4 px-6 py-4">
           {/* Not a link. On the dashboard host "/" resolves straight back to
@@ -29,12 +29,14 @@ export function Login() {
         </div>
       </header>
 
-      <main className="flex flex-1 items-center justify-center px-6 py-16">
-        <div className="w-full max-w-sm">
-          <div className="rounded-xl border border-border bg-surface p-8 shadow-md">
+      <main className="relative flex flex-1 items-center justify-center px-6 py-16">
+        <div aria-hidden="true" className="absolute bottom-[-18rem] left-[-12rem] size-[34rem] rounded-full bg-primary/10 blur-3xl" />
+        <div className="relative w-full max-w-md">
+          <div className="rounded-2xl border border-border bg-surface p-7 shadow-lg sm:p-9">
             <Wordmark size="lg" className="mb-6" />
 
-            <h1 className="text-xl leading-snug font-semibold tracking-tight text-balance text-text">
+            <p className="text-xs font-semibold tracking-[0.13em] text-accent uppercase">Welcome back</p>
+            <h1 className="mt-3 text-2xl leading-snug font-semibold tracking-[-0.03em] text-balance text-text">
               Sign in to deploy your static sites
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-muted">
@@ -65,7 +67,7 @@ export function Login() {
 
           {/* Outside the card: this explains what happens after the button, and
               belongs with the decision rather than inside the control. */}
-          <div className="mt-6 px-1">
+          <div className="mt-6 border-t border-border px-1 pt-6">
             <h2 className="text-[11px] font-semibold tracking-[0.08em] text-muted uppercase">
               What Dropbin asks for
             </h2>

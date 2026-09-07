@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { Button, ErrorBanner, Mono, Panel, Spinner } from "../components/Bits";
+import { ErrorBanner, Mono, Spinner } from "../components/Bits";
+import { Button } from "../components/ui/button";
+import { Card } from "../components/ui/card";
 import { api, type GithubRepo, type Me } from "../lib/api";
 import { timeAgo } from "../lib/format";
 
@@ -62,20 +64,20 @@ export function ImportRepo({ me, onImported }: { me: Me | null; onImported: () =
 
   if (!connected) {
     return (
-      <Panel className="px-6 py-12 text-center">
-        <p className="text-sm text-text">GitHub is not connected.</p>
-        <p className="mx-auto mt-3 max-w-sm text-xs leading-relaxed text-muted">
+      <Card className="px-6 py-12 text-center">
+        <p className="text-base font-semibold text-text">Connect GitHub to continue</p>
+        <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-muted">
           Sign out and sign in again to authorise GitHub. The token is what lets
           us read the repository and register the push webhook.
         </p>
-      </Panel>
+      </Card>
     );
   }
 
   return (
     <div>
       {!canHook && (
-        <Panel className="mb-6 border-pending/40 px-5 py-4">
+        <Card className="mb-6 border-warning/40 bg-warning-subtle px-5 py-4">
           <p className="text-sm text-text">
             Your GitHub sign-in cannot register webhooks.
           </p>
@@ -86,7 +88,7 @@ export function ImportRepo({ me, onImported }: { me: Me | null; onImported: () =
             reports that as “not found” rather than as a permissions problem.
             Sign out and sign in again to re-authorise.
           </p>
-        </Panel>
+        </Card>
       )}
 
       {error && (
@@ -95,7 +97,12 @@ export function ImportRepo({ me, onImported }: { me: Me | null; onImported: () =
         </div>
       )}
 
-      <div className="mb-8 flex flex-wrap items-end gap-3">
+      <Card className="mb-8 p-5 sm:p-6">
+        <div className="mb-5">
+          <h2 className="text-base font-semibold text-text">Import a repository</h2>
+          <p className="mt-1 text-sm text-muted">Paste a repository path or choose one from your account.</p>
+        </div>
+      <div className="flex flex-wrap items-end gap-3">
         <label className="min-w-0 flex-1">
           <span className="mb-2 block text-sm text-muted">Repository</span>
           <input
@@ -103,7 +110,7 @@ export function ImportRepo({ me, onImported }: { me: Me | null; onImported: () =
             onChange={(event) => setManual(event.target.value)}
             placeholder="owner/name"
             disabled={busy !== null}
-            className="w-full rounded-md border border-edge-bright bg-panel px-4 py-2.5 font-mono text-sm text-text placeholder:text-faint focus:border-primary focus:outline-none disabled:opacity-50"
+            className="w-full rounded-md border border-border-strong bg-surface px-4 py-2.5 font-mono text-sm text-text placeholder:text-muted focus:border-primary focus:outline-none disabled:opacity-50"
           />
         </label>
         <label className="w-40">
@@ -115,7 +122,7 @@ export function ImportRepo({ me, onImported }: { me: Me | null; onImported: () =
             onChange={(event) => setBranch(event.target.value)}
             placeholder="default"
             disabled={busy !== null}
-            className="w-full rounded-md border border-edge-bright bg-panel px-4 py-2.5 font-mono text-sm text-text placeholder:text-faint focus:border-primary focus:outline-none disabled:opacity-50"
+            className="w-full rounded-md border border-border-strong bg-surface px-4 py-2.5 font-mono text-sm text-text placeholder:text-muted focus:border-primary focus:outline-none disabled:opacity-50"
           />
         </label>
         <Button
@@ -126,6 +133,7 @@ export function ImportRepo({ me, onImported }: { me: Me | null; onImported: () =
           {busy === manual.trim() ? "Importing…" : "Import"}
         </Button>
       </div>
+      </Card>
 
       <h2 className="mb-3 text-sm tracking-wide text-muted uppercase">
         Your repositories
@@ -135,13 +143,13 @@ export function ImportRepo({ me, onImported }: { me: Me | null; onImported: () =
       {repos === null && !listError && <Spinner label="Loading repositories" />}
 
       {repos !== null && repos.length === 0 && (
-        <Panel className="px-6 py-12 text-center text-sm text-muted">
+        <Card className="px-6 py-12 text-center text-sm text-muted">
           No repositories you can push to.
-        </Panel>
+        </Card>
       )}
 
       {repos !== null && repos.length > 0 && (
-        <Panel>
+        <Card className="overflow-hidden">
           <ul>
             {repos.map((repo) => (
               <li
@@ -171,10 +179,10 @@ export function ImportRepo({ me, onImported }: { me: Me | null; onImported: () =
               </li>
             ))}
           </ul>
-        </Panel>
+        </Card>
       )}
 
-      <p className="mt-8 text-center text-xs leading-relaxed text-faint">
+      <p className="mt-8 text-center text-xs leading-relaxed text-muted">
         Importing registers a push webhook and deploys once immediately, so the
         site is live without pushing anything. If the repository needs a build
         step, enable builds on the project page afterwards.

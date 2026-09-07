@@ -1,6 +1,7 @@
 import { Link, NavLink, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
-import { LogOut } from "lucide-react";
+import { FolderKanban, LogOut, Menu, Plus, X } from "lucide-react";
+import { useState } from "react";
 
 import { useAuth } from "../auth/AuthProvider";
 import { Avatar } from "./ui/avatar";
@@ -131,39 +132,99 @@ function AccountMenu({ me }: { me: Me | null }) {
 
 export function Layout({ children, me }: { children: ReactNode; me: Me | null }) {
   const location = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `rounded-md px-3 py-1.5 text-sm transition-colors ${
-      isActive ? "bg-surface-hover text-text" : "text-muted hover:text-text"
+    `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+      isActive ? "bg-primary-subtle text-primary-subtle-fg" : "text-muted hover:bg-surface-hover hover:text-text"
     }`;
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-border">
-        <div className="mx-auto flex max-w-5xl items-center gap-4 px-6 py-4">
-          <Link to="/projects">
+    <div className="min-h-screen bg-bg lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 flex w-[280px] flex-col border-r border-border bg-surface p-4 transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:w-auto lg:translate-x-0 ${
+          mobileOpen ? "translate-x-0 shadow-lg" : "-translate-x-full"
+        }`}
+      >
+        <div className="flex h-11 items-center justify-between px-2">
+          <Link to="/projects" onClick={() => setMobileOpen(false)}>
             <Wordmark />
           </Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden"
+            aria-label="Close navigation"
+            onClick={() => setMobileOpen(false)}
+          >
+            <X />
+          </Button>
+        </div>
 
-          <nav className="flex items-center gap-1">
-            <NavLink to="/projects" end className={linkClass}>
-              Projects
-            </NavLink>
-            <NavLink to="/projects/new" className={linkClass}>
-              New
-            </NavLink>
-          </nav>
+        <Link to="/projects/new" className="mt-7" onClick={() => setMobileOpen(false)}>
+          <Button variant="primary" block icon={<Plus />}>
+            New project
+          </Button>
+        </Link>
 
-          <div className="ml-auto flex items-center gap-3">
+        <nav className="mt-7 space-y-1" aria-label="Main navigation">
+          <NavLink to="/projects" end className={linkClass} onClick={() => setMobileOpen(false)}>
+            <FolderKanban className="size-4" aria-hidden="true" />
+            Projects
+          </NavLink>
+          <NavLink to="/projects/new" className={linkClass} onClick={() => setMobileOpen(false)}>
+            <Plus className="size-4" aria-hidden="true" />
+            Create project
+          </NavLink>
+        </nav>
+
+        <div className="mt-auto border-t border-border pt-4">
+          <p className="px-3 pb-3 text-[11px] font-semibold tracking-[0.12em] text-muted uppercase">
+            Workspace
+          </p>
+          <div className="flex items-center justify-between px-2">
             <ThemeToggle />
             <AccountMenu me={me} />
           </div>
         </div>
-      </header>
+      </aside>
 
-      <main key={location.pathname} className="mx-auto max-w-5xl px-6 py-12">
-        {children}
-      </main>
+      {mobileOpen && (
+        <button
+          type="button"
+          aria-label="Close navigation overlay"
+          className="fixed inset-0 z-30 bg-text/20 backdrop-blur-[1px] lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      <div className="min-w-0">
+        <header className="sticky top-0 z-20 border-b border-border bg-bg/90 backdrop-blur">
+          <div className="flex h-16 items-center gap-3 px-5 sm:px-8">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden"
+              aria-label="Open navigation"
+              onClick={() => setMobileOpen(true)}
+            >
+              <Menu />
+            </Button>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-text">Workspace</p>
+              <p className="hidden text-xs text-muted sm:block">Deploy and manage your sites</p>
+            </div>
+            <div className="ml-auto flex items-center gap-2 lg:hidden">
+              <ThemeToggle />
+              <AccountMenu me={me} />
+            </div>
+          </div>
+        </header>
+
+        <main key={location.pathname} className="mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 sm:py-10">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

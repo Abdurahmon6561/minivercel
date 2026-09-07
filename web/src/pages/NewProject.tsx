@@ -180,12 +180,15 @@ export function NewProject({ me, onDeployed }: { me: Me | null; onDeployed: () =
     : "zip";
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <h1 className="text-2xl font-semibold tracking-tight text-text">New project</h1>
-      <p className="mt-2 text-sm leading-relaxed text-muted">
+    <div className="mx-auto max-w-3xl">
+      <div className="border-b border-border pb-7">
+        <p className="text-xs font-semibold tracking-[0.13em] text-accent uppercase">Create</p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-text">Deploy a new project</h1>
+      <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted">
         Static files only. Nothing you upload is ever executed on our servers — it
         is validated, stored, and served.
       </p>
+      </div>
 
       <Tabs
         value={source}
@@ -195,7 +198,7 @@ export function NewProject({ me, onDeployed }: { me: Me | null; onDeployed: () =
           else updated.set("from", next);
           setParams(updated, { replace: true });
         }}
-        className="mt-8"
+        className="mt-8 rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6"
       >
         {/* Horizontal here: two peers at the top of a form, not a sidebar. The
             list defaults to a row and only becomes a column at md, so this
