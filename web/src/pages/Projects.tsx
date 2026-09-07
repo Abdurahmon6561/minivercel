@@ -15,7 +15,7 @@ function PageHeader() {
   return (
     <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
       <h1 className="text-2xl font-semibold tracking-tight text-text">Projects</h1>
-      <Link to="/new">
+      <Link to="/projects/new">
         <Button variant="primary" icon={<Plus />}>
           New project
         </Button>
@@ -127,12 +127,12 @@ function EmptyState() {
         public URL as soon as it finishes.
       </p>
       <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-        <Link to="/new?from=zip">
+        <Link to="/projects/new?from=zip">
           <Button variant="primary" icon={<Upload />}>
             Upload a zip
           </Button>
         </Link>
-        <Link to="/new?from=github">
+        <Link to="/projects/new?from=github">
           <Button variant="secondary" icon={<GithubMark className="size-4" />}>
             Import from GitHub
           </Button>

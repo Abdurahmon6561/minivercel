@@ -149,7 +149,7 @@ export function Layout({ children, me }: { children: ReactNode; me: Me | null })
             <NavLink to="/projects" end className={linkClass}>
               Projects
             </NavLink>
-            <NavLink to="/new" className={linkClass}>
+            <NavLink to="/projects/new" className={linkClass}>
               New
             </NavLink>
           </nav>

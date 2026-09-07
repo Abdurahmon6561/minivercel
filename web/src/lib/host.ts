@@ -47,3 +47,23 @@ export function dashboardOrigin(): string {
 
   return `${protocol}//app.${host}`;
 }
+
+/**
+ * The domain a project's site is served from, or null when there isn't one.
+ *
+ * `app.getdropbin.xyz` -> `getdropbin.xyz`, so the new-project screen can show
+ * `{slug}.getdropbin.xyz` before the project exists. Returns null on localhost
+ * and bare IPs, where there is no wildcard DNS and a preview would be a lie -
+ * callers show the slug on its own there.
+ */
+export function siteDomain(): string | null {
+  if (typeof window === "undefined") return null;
+  const { hostname } = window.location;
+  const isLocal =
+    hostname === "localhost" ||
+    hostname === "[::1]" ||
+    !hostname.includes(".") ||
+    /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname);
+  if (isLocal) return null;
+  return hostname.startsWith("app.") ? hostname.slice("app.".length) : hostname;
+}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useParams, useSearchParams } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthProvider";
 import { ErrorBanner, Spinner } from "./components/Bits";
@@ -62,6 +62,20 @@ function LegacyProjectRedirect() {
   return <Navigate to={`/projects/${slug}`} replace />;
 }
 
+/** The old new-project URL. Query string is carried over so /new?from=github
+ *  still lands on the importer. */
+function LegacyNewRedirect() {
+  const [params] = useSearchParams();
+  const query = params.toString();
+  if (import.meta.env.DEV) {
+    console.warn(
+      "[dropbin] /new is the old new-project URL - redirecting to /projects/new. " +
+        "The scheme changed in step 7; update any bookmark or hard-coded link.",
+    );
+  }
+  return <Navigate to={`/projects/new${query ? `?${query}` : ""}`} replace />;
+}
+
 /** Everything behind the marketing page: needs config, auth, and the header. */
 function Dashboard() {
   const { session, loading } = useAuth();
@@ -105,12 +119,17 @@ function Dashboard() {
     <Layout me={me}>
       <Routes>
         <Route path="/projects" element={<Projects />} />
-        <Route path="/new" element={<NewProject me={me} onDeployed={refreshMe} />} />
+        {/* Before /projects/:slug, or "new" would be read as a slug. */}
+        <Route
+          path="/projects/new"
+          element={<NewProject me={me} onDeployed={refreshMe} />}
+        />
         <Route
           path="/projects/:slug"
           element={<ProjectDetail me={me} onChanged={refreshMe} />}
         />
         <Route path="/p/:slug" element={<LegacyProjectRedirect />} />
+        <Route path="/new" element={<LegacyNewRedirect />} />
         <Route path="/login" element={<Navigate to="/projects" replace />} />
         <Route
           path="*"
