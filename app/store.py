@@ -60,12 +60,60 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def slugify(name: str, *, fallback: str = "site") -> str:
+#: Suffixes dropped before a name becomes a slug, longest first so `.jsx` is
+#: matched before `.js` would be.
+#:
+#: A repository called `MacBook-React.jsx` should be served from
+#: `macbook-react.getdropbin.xyz`, not `macbook-react-jsx.` - the extension
+#: describes a file, and nothing about the site is a `.jsx`.
+#:
+#: The cost is repositories whose name genuinely ends in one of these:
+#: `three.js`, `next.js`, `chart.js` and friends become `three`, `next`,
+#: `chart`. That is a real trade and it is made knowingly - the derived slug is
+#: only ever a default, and the import screen shows it as an editable field
+#: with a preview of the URL before anything is created.
+_FILE_EXTENSIONS = (
+    ".html", ".jsx", ".tsx", ".js", ".ts", ".md", ".py", ".go", ".rs", ".rb",
+)
+
+
+def _strip_file_extension(name: str) -> str:
+    """`MacBook-React.jsx` -> `MacBook-React`. Leaves everything else alone.
+
+    A name that is *only* an extension (`.tsx`) keeps it: there would be
+    nothing left otherwise.
+    """
+    lowered = name.lower()
+    for extension in _FILE_EXTENSIONS:
+        if lowered.endswith(extension) and len(name) > len(extension):
+            return name[: -len(extension)]
+    return name
+
+
+def _slug_chars(name: str) -> str:
+    """The character-level part of slugging, with no fallbacks applied."""
     normalised = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
-    slug = _NON_SLUG.sub("-", normalised.lower()).strip("-")
-    slug = slug[:48].strip("-")
+    return _NON_SLUG.sub("-", normalised.lower()).strip("-")[:48].strip("-")
+
+
+def slugify(name: str, *, fallback: str = "site") -> str:
+    slug = _slug_chars(_strip_file_extension(name))
+
     if len(slug) < 3:
-        slug = (slug + "-" + fallback).strip("-")[:48]
+        # Stripping may have taken the only usable part of the name - `v2.py`
+        # leaves `v2`, `.md.md` leaves `.md`. Prefer the whole name over a
+        # generated one when it would have worked.
+        with_extension = _slug_chars(name)
+        if len(with_extension) >= 3:
+            log.warning(
+                "slug: keeping the file extension in %r; without it there is "
+                "not enough left to name a site",
+                name,
+            )
+            slug = with_extension
+        else:
+            slug = (slug + "-" + fallback).strip("-")[:48]
+
     if is_reserved(slug):
         # A repository called `docs` or `app` is ordinary; taking that slug is
         # not. Give it a generated one instead of refusing the import.

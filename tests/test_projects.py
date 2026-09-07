@@ -151,6 +151,66 @@ def test_slugify():
     assert len(slugify("x" * 200)) <= 48
 
 
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        # The reported case: a repository named after a file.
+        ("MacBook-React.jsx", "macbook-react"),
+        ("portfolio.tsx", "portfolio"),
+        ("my-notes.md", "my-notes"),
+        ("scraper.py", "scraper"),
+        ("landing.html", "landing"),
+        ("service.go", "service"),
+        ("parser.rs", "parser"),
+        ("gem-thing.rb", "gem-thing"),
+        ("bundler.ts", "bundler"),
+        ("widget.js", "widget"),
+        # Longest match wins: .jsx is not treated as .js plus a stray x.
+        ("thing.jsx", "thing"),
+        # An extension in the middle is part of the name, not a suffix.
+        ("app.js.backup", "app-js-backup"),
+        # Not an extension we strip.
+        ("data.csv", "data-csv"),
+        ("site.v2", "site-v2"),
+    ],
+)
+def test_slugify_drops_a_trailing_file_extension(name, expected):
+    assert slugify(name) == expected
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        # Nothing in front of the dot, so nothing is stripped; what is left is
+        # long enough to stand on its own.
+        (".tsx", "tsx"),
+        # Two characters is below the minimum, so the usual fallback applies.
+        (".md", "md-site"),
+        (".py", "py-site"),
+    ],
+)
+def test_slugify_keeps_an_extension_that_is_the_whole_name(name, expected):
+    """`.tsx` has nothing in front of it; stripping would leave nothing."""
+    assert slugify(name) == expected
+
+
+def test_slugify_falls_back_to_the_full_name_when_stripping_leaves_too_little():
+    """`v2.py` -> `v2` is two characters, which is not a usable slug.
+
+    Rather than generate an unrelated adjective-noun slug, keep the extension:
+    `v2-py` still means something to the person who named the repository.
+    """
+    assert slugify("v2.py") == "v2-py"
+    assert slugify("ui.tsx") == "ui-tsx"
+
+
+def test_slugify_still_refuses_reserved_names_after_stripping():
+    """`docs.md` strips to `docs`, which is reserved - and must not slip through
+    just because it arrived with an extension attached."""
+    assert slugify("docs.md") not in {"docs", "docs-md"}
+    assert slugify("api.py") != "api"
+
+
 # -- the dashboard's project list ---------------------------------------------
 
 
