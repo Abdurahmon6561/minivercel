@@ -4,10 +4,14 @@ import {
   AlertCircle,
   ArrowLeft,
   Check,
+  Cog,
   Copy,
   ExternalLink,
+  GitBranch,
   RotateCcw,
+  Rocket,
   Upload,
+  Variable,
   X,
 } from "lucide-react";
 
@@ -23,8 +27,15 @@ import { DropZone } from "../components/DropZone";
 import { api, type Me, type ProjectDetail as Detail } from "../lib/api";
 import { exactTime, timeAgo } from "../lib/format";
 
-const TABS = ["deployments", "github", "environment", "settings"] as const;
-type TabName = (typeof TABS)[number];
+const TABS = [
+  { value: "deployments", label: "Deployments", Icon: Rocket },
+  { value: "github", label: "GitHub", Icon: GitBranch },
+  { value: "environment", label: "Environment", Icon: Variable },
+  { value: "settings", label: "Settings", Icon: Cog },
+] as const;
+
+type TabName = (typeof TABS)[number]["value"];
+const TAB_NAMES: readonly string[] = TABS.map((t) => t.value);
 
 function CopyUrlButton({ url }: { url: string }) {
   const [copied, setCopied] = useState(false);
@@ -55,30 +66,42 @@ function CopyUrlButton({ url }: { url: string }) {
   );
 }
 
-function HeaderSkeleton() {
+/** Mirrors the real two-column layout, so nothing jumps when data arrives. */
+function DetailSkeleton() {
   return (
     <div>
       <Skeleton className="h-4 w-24" />
-      <div className="mt-6 flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <Skeleton className="h-7 w-56" />
-          <Skeleton className="mt-3 h-4 w-72" />
+      <div className="mt-6 flex flex-col gap-6 md:flex-row md:gap-8">
+        <div className="w-full shrink-0 md:w-[220px]">
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="mt-2 h-3 w-48" />
+          <div className="my-4 h-px bg-border" />
+          <div className="flex gap-1 md:flex-col">
+            {Array.from({ length: 4 }, (_, index) => (
+              <Skeleton key={index} className="h-9 w-full md:w-full" />
+            ))}
+          </div>
+          <div className="mt-5 flex flex-col gap-2">
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-9 w-full" />
+          </div>
         </div>
-        <div className="flex gap-2.5">
-          <Skeleton className="h-9 w-36" />
-          <Skeleton className="h-9 w-28" />
+
+        <div className="min-w-0 flex-1">
+          <Card className="overflow-hidden">
+            {Array.from({ length: 5 }, (_, index) => (
+              <div
+                key={index}
+                className="flex items-center gap-4 border-b border-border p-4 last:border-0"
+              >
+                <Skeleton className="h-5 w-20 rounded-full" />
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="ml-auto h-3 w-24" />
+              </div>
+            ))}
+          </Card>
         </div>
       </div>
-      <Skeleton className="mt-8 h-10 w-full" />
-      <Card className="mt-6 overflow-hidden">
-        {Array.from({ length: 4 }, (_, index) => (
-          <div key={index} className="flex items-center gap-4 border-b border-border p-4 last:border-0">
-            <Skeleton className="h-5 w-20 rounded-full" />
-            <Skeleton className="h-3 w-16" />
-            <Skeleton className="ml-auto h-3 w-24" />
-          </div>
-        ))}
-      </Card>
     </div>
   );
 }
@@ -147,7 +170,7 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
   // Tab lives in the URL so a tab is linkable and the back button steps
   // through them rather than leaving the page.
   const requested = params.get("tab");
-  const tab: TabName = (TABS as readonly string[]).includes(requested ?? "")
+  const tab: TabName = TAB_NAMES.includes(requested ?? "")
     ? (requested as TabName)
     : "deployments";
 
@@ -218,7 +241,7 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
   };
 
   if (error && !project) return <LoadError message={error} onRetry={() => void load()} />;
-  if (!project) return <HeaderSkeleton />;
+  if (!project) return <DetailSkeleton />;
 
   return (
     <div>
@@ -229,39 +252,6 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
         <ArrowLeft className="size-3.5" aria-hidden="true" />
         Projects
       </Link>
-
-      <header className="mt-6 flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight text-text">{project.name}</h1>
-          <div className="mt-2 flex items-center gap-1">
-            <a
-              href={project.url}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="font-mono text-[13px] break-all text-muted transition-colors hover:text-accent"
-            >
-              {project.url.replace(/^https?:\/\//, "")}
-            </a>
-            <CopyUrlButton url={project.url} />
-          </div>
-        </div>
-
-        <div className="flex shrink-0 flex-wrap gap-2.5">
-          <Button
-            variant="primary"
-            icon={uploading ? <X /> : <Upload />}
-            disabled={progress !== null}
-            onClick={() => setUploading((open) => !open)}
-          >
-            {uploading ? "Cancel" : "New deployment"}
-          </Button>
-          <a href={project.url} target="_blank" rel="noreferrer noopener">
-            <Button variant="secondary" icon={<ExternalLink />}>
-              Open site
-            </Button>
-          </a>
-        </div>
-      </header>
 
       {error && (
         <div
@@ -282,46 +272,99 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
         </div>
       )}
 
-      {(uploading || progress !== null) && (
-        <div className="mt-6">
-          {progress !== null ? (
-            <Card className="px-6 py-12 text-center">
-              <div className="mx-auto h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-surface-hover">
-                <div
-                  className="h-full bg-primary transition-[width] duration-200"
-                  style={{ width: `${Math.round(progress * 100)}%` }}
-                />
-              </div>
-              <p className="mt-4 text-sm text-muted">
-                {progress < 1
-                  ? `Uploading ${Math.round(progress * 100)}%`
-                  : "Validating and publishing…"}
-              </p>
-            </Card>
-          ) : (
-            <DropZone onFile={upload} maxBytes={me?.usage.max_deployment_bytes} />
-          )}
-        </div>
-      )}
+      {/* Radix's Root is the flex container itself, because the list and the
+          panels have to stay inside one Tabs context while sitting in two
+          different columns. */}
+      <Tabs
+        orientation="vertical"
+        value={tab}
+        onValueChange={(next) => {
+          // `replace` so four sidebar clicks do not become four back-button
+          // presses between here and the project list.
+          const updated = new URLSearchParams(params);
+          if (next === "deployments") updated.delete("tab");
+          else updated.set("tab", next);
+          setParams(updated, { replace: true });
+        }}
+        className="mt-6 flex flex-col gap-6 md:flex-row md:gap-8"
+      >
+        <aside className="w-full shrink-0 md:w-[220px]">
+          <div className="md:sticky md:top-6">
+            <h1
+              className="truncate text-base font-semibold tracking-tight text-text"
+              title={project.name}
+            >
+              {project.name}
+            </h1>
 
-      <div className="mt-8">
-        <Tabs
-          value={tab}
-          onValueChange={(next) => {
-            // `replace` so five tab clicks do not become five back-button
-            // presses between the page and the project list.
-            const updated = new URLSearchParams(params);
-            if (next === "deployments") updated.delete("tab");
-            else updated.set("tab", next);
-            setParams(updated, { replace: true });
-          }}
-        >
-          <TabsList>
-            <TabsTrigger value="deployments">Deployments</TabsTrigger>
-            <TabsTrigger value="github">GitHub</TabsTrigger>
-            <TabsTrigger value="environment">Environment</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-          </TabsList>
+            <div className="mt-1 flex items-center gap-1">
+              <a
+                href={project.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex min-w-0 items-center gap-1 font-mono text-xs text-muted transition-colors hover:text-accent"
+                title={project.url}
+              >
+                <span className="truncate">{project.url.replace(/^https?:\/\//, "")}</span>
+                <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
+              </a>
+              <CopyUrlButton url={project.url} />
+            </div>
+
+            <div className="my-4 h-px bg-border" />
+
+            <TabsList aria-label="Project sections">
+              {TABS.map(({ value, label, Icon }) => (
+                <TabsTrigger key={value} value={value}>
+                  <Icon aria-hidden="true" />
+                  {label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+
+            <div className="mt-5 flex flex-col gap-2">
+              <Button
+                variant="primary"
+                block
+                icon={uploading ? <X /> : <Upload />}
+                disabled={progress !== null}
+                onClick={() => setUploading((open) => !open)}
+              >
+                {uploading ? "Cancel" : "New deployment"}
+              </Button>
+              <a href={project.url} target="_blank" rel="noreferrer noopener">
+                <Button variant="secondary" block icon={<ExternalLink />}>
+                  Open site
+                </Button>
+              </a>
+            </div>
+          </div>
+        </aside>
+
+        {/* min-w-0 so a wide deployments table scrolls inside its own container
+            instead of stretching this column past the viewport. */}
+        <div className="min-w-0 flex-1">
+          {(uploading || progress !== null) && (
+            <div className="mb-6">
+              {progress !== null ? (
+                <Card className="px-6 py-12 text-center">
+                  <div className="mx-auto h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-surface-hover">
+                    <div
+                      className="h-full bg-primary transition-[width] duration-200"
+                      style={{ width: `${Math.round(progress * 100)}%` }}
+                    />
+                  </div>
+                  <p className="mt-4 text-sm text-muted">
+                    {progress < 1
+                      ? `Uploading ${Math.round(progress * 100)}%`
+                      : "Validating and publishing…"}
+                  </p>
+                </Card>
+              ) : (
+                <DropZone onFile={upload} maxBytes={me?.usage.max_deployment_bytes} />
+              )}
+            </div>
+          )}
 
           <TabsContent value="deployments">
             <DeploymentsTab
@@ -347,14 +390,14 @@ export function ProjectDetail({ me, onChanged }: { me: Me | null; onChanged: () 
           <TabsContent value="settings">
             <SettingsTab project={project} />
           </TabsContent>
-        </Tabs>
-      </div>
 
-      <DangerZone
-        slug={project.slug}
-        deploymentCount={project.deployments.length}
-        onDelete={remove}
-      />
+          <DangerZone
+            slug={project.slug}
+            deploymentCount={project.deployments.length}
+            onDelete={remove}
+          />
+        </div>
+      </Tabs>
     </div>
   );
 }
