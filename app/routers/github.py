@@ -33,7 +33,7 @@ from ..github import (
     missing_scope_message,
     split_repo,
 )
-from ..store import Conflict, slugify
+from ..store import Conflict, is_valid_slug, slugify
 from ..urls import site_url, webhook_url
 
 from ._errors import as_http
@@ -46,6 +46,16 @@ router = APIRouter(tags=["github"])
 class ImportRequest(BaseModel):
     repo: str = Field(min_length=3, max_length=140)
     branch: str | None = Field(default=None, max_length=100)
+
+    #: What the site will be served from. Optional: omit it and the repository
+    #: name is slugified, which is what the dashboard shows as a default.
+    #:
+    #: Sending it explicitly is how the import screen lets someone fix a name
+    #: before the project exists - a repository called `MacBook-React.jsx`
+    #: derives `macbook-react`, and the person importing it may want something
+    #: else entirely. `create_project` refuses to silently move an explicit
+    #: slug, so a collision is reported rather than worked around.
+    slug: str | None = Field(default=None, max_length=63)
 
 
 @router.get("/api/me/github/repos")
@@ -113,9 +123,19 @@ async def import_repo(
                 missing_scope_message(PRIVATE_REPO_SCOPES, "deploy a private repository")
             )
 
+        # A malformed slug is the caller's mistake, not a collision, so it is
+        # rejected before anything is created and with a status that says so.
+        requested_slug = (payload.slug or "").strip().lower() or None
+        if requested_slug is not None and not is_valid_slug(requested_slug):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "A site name may use lowercase letters, digits and hyphens, and "
+                "must be between 3 and 63 characters.",
+            )
+
         try:
             project = await store.create_project(
-                user.id, name, slug=slugify(name)
+                user.id, name, slug=requested_slug or slugify(name)
             )
         except Conflict as exc:
             raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc

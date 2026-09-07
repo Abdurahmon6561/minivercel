@@ -27,6 +27,7 @@ from app.github import (
     seal_secret,
     split_repo,
 )
+from app.store import slugify
 from app.zipvalidate import ZipEntry, select_site_root
 
 from .conftest import auth_headers, make_zip
@@ -305,6 +306,101 @@ async def test_import_creates_project_webhook_and_first_deployment(
     assert len(supabase.tables["deployments"]) == 1
     assert supabase.tables["deployments"][0]["status"] == "ready"
     assert any(key.endswith("/index.html") for key in supabase.objects)
+
+
+async def test_import_derives_the_slug_from_the_repository_name(
+    client, supabase, github
+):
+    """The default: no slug sent, so the repository name is slugified."""
+    await connect_github(client, supabase)
+
+    response = await client.post(
+        "/api/projects/import", headers=auth_headers(), json={"repo": REPO}
+    )
+    assert response.status_code == 201, response.text
+    assert supabase.tables["projects"][0]["slug"] == slugify(REPO.split("/")[1])
+
+
+async def test_import_accepts_an_explicit_slug(client, supabase, github):
+    """The import screen lets someone fix the derived name before creating it."""
+    await connect_github(client, supabase)
+
+    response = await client.post(
+        "/api/projects/import",
+        headers=auth_headers(),
+        json={"repo": REPO, "slug": "my-chosen-name"},
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["slug"] == "my-chosen-name"
+    assert supabase.tables["projects"][0]["slug"] == "my-chosen-name"
+
+
+async def test_import_normalises_a_slug_before_using_it(client, supabase, github):
+    await connect_github(client, supabase)
+
+    response = await client.post(
+        "/api/projects/import",
+        headers=auth_headers(),
+        json={"repo": REPO, "slug": "  MiXeD-Case  "},
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["slug"] == "mixed-case"
+
+
+async def test_import_blank_slug_falls_back_to_the_derived_one(client, supabase, github):
+    """An empty field is "I did not choose", not "use an empty slug"."""
+    await connect_github(client, supabase)
+
+    response = await client.post(
+        "/api/projects/import",
+        headers=auth_headers(),
+        json={"repo": REPO, "slug": "   "},
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["slug"] == slugify(REPO.split("/")[1])
+
+
+@pytest.mark.parametrize(
+    "bad", ["ab", "Has Space", "under_score", "-leading", "trailing-", "x" * 64]
+)
+async def test_import_rejects_a_malformed_slug(client, supabase, github, bad):
+    """422, not 409: this is a bad request, not a collision."""
+    await connect_github(client, supabase)
+
+    response = await client.post(
+        "/api/projects/import",
+        headers=auth_headers(),
+        json={"repo": REPO, "slug": bad},
+    )
+    assert response.status_code == 422, response.text
+    # Nothing was created on the way to rejecting it.
+    assert supabase.tables["projects"] == []
+
+
+async def test_import_reports_a_taken_slug_rather_than_moving_it(
+    client, supabase, github
+):
+    """An explicit slug is a request, not a suggestion.
+
+    The zip flow appends a suffix when a generated slug collides; an explicit
+    one must not be silently relocated, or the URL someone was shown in the
+    preview is not the URL they get.
+    """
+    await connect_github(client, supabase)
+    first = await client.post(
+        "/api/projects/import",
+        headers=auth_headers(),
+        json={"repo": REPO, "slug": "taken-name"},
+    )
+    assert first.status_code == 201, first.text
+
+    second = await client.post(
+        "/api/projects/import",
+        headers=auth_headers(),
+        json={"repo": REPO, "slug": "taken-name"},
+    )
+    assert second.status_code == 409
+    assert "already taken" in second.json()["detail"]
 
 
 async def test_import_strips_githubs_wrapper_directory(client, supabase, github):
