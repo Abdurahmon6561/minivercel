@@ -5,14 +5,11 @@ import { ArrowRight, Check, CheckCircle2, Globe2, History, Upload, X } from "luc
 
 import { useAuth } from "../auth/AuthProvider";
 import { ServerClusterIllustration } from "../components/landing/ServerClusterIllustration";
+import { SitePreview } from "../components/landing/SitePreview";
 import { Button } from "../components/ui/button";
 import { GithubMark } from "../components/ui/github-mark";
 import { ThemeToggle } from "../components/ui/theme-toggle";
 import { Wordmark } from "../components/ui/wordmark";
-
-function Feature({ Icon, number, title, children }: { Icon: ComponentType<{ className?: string }>; number: string; title: string; children: React.ReactNode }) {
-  return <article className="border-t border-border pt-5"><div className="flex items-center justify-between"><Icon className="size-5 text-accent" aria-hidden="true" /><span className="font-mono text-xs text-muted">{number}</span></div><h3 className="mt-7 text-base font-semibold tracking-tight text-text">{title}</h3><p className="mt-2 max-w-xs text-sm leading-relaxed text-muted">{children}</p></article>;
-}
 
 
 /**
@@ -128,6 +125,80 @@ function Hero() {
   );
 }
 
+/**
+ * The three steps, then the thing they produce.
+ *
+ * Numbered markers are used here and nowhere else on the page, because here the
+ * order is real information: you cannot roll back before you have deployed. The
+ * connecting rail is each step's own top border rather than an absolutely
+ * positioned line, so it survives the wrap to one column on mobile - the rail
+ * becomes a divider above each step instead of a line pointing at nothing.
+ */
+const STEPS: { Icon: ComponentType<{ className?: string }>; number: string; title: string; body: string }[] = [
+  {
+    Icon: Upload,
+    number: "01",
+    title: "Add your files",
+    body: "Import a GitHub repository you own, or drop in a zip with an index file.",
+  },
+  {
+    Icon: Globe2,
+    number: "02",
+    title: "Dropbin publishes it",
+    body: "Your build runs on GitHub Actions if it needs one, and the output goes live on an HTTPS subdomain.",
+  },
+  {
+    Icon: History,
+    number: "03",
+    title: "Roll back any time",
+    body: "Every deploy keeps its own files, so promoting a previous version takes one click.",
+  },
+];
+
+function HowItWorks() {
+  return (
+    <section id="how-it-works" className="border-y border-border bg-surface">
+      <div className="mx-auto max-w-7xl px-6 py-20 sm:px-8 sm:py-24">
+        <div className="max-w-2xl">
+          <p className="text-xs font-semibold tracking-[0.13em] text-accent uppercase">How it works</p>
+          <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-balance text-text sm:text-4xl">
+            Three steps, and no configuration to learn.
+          </h2>
+        </div>
+
+        <ol className="mt-14 grid gap-12 sm:grid-cols-3 sm:gap-8">
+          {STEPS.map(({ Icon, number, title, body }) => (
+            <li key={number} className="relative border-t border-border pt-9">
+              {/* Straddles the border, and masks it with the section's own
+                  background so the rail reads as passing behind the node. */}
+              <span
+                aria-hidden="true"
+                className="absolute -top-4 left-0 flex size-8 items-center justify-center rounded-full border border-border bg-surface font-mono text-xs text-muted"
+              >
+                {number}
+              </span>
+              <h3 className="flex items-center gap-2 text-base font-semibold tracking-tight text-text">
+                <Icon className="size-4 shrink-0 text-accent" aria-hidden="true" />
+                {title}
+              </h3>
+              <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted">{body}</p>
+            </li>
+          ))}
+        </ol>
+
+        {/* A figure, not a decorative div: it is the outcome the three steps
+            produce, and the caption is what ties it to them. */}
+        <figure className="mt-16">
+          <SitePreview />
+          <figcaption className="mt-4 text-center text-sm text-muted">
+            A finished deployment: the public URL, its status, and the commit it came from.
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+  );
+}
+
 export function Landing() {
   const { session, loading } = useAuth();
   const [params] = useSearchParams();
@@ -173,7 +244,8 @@ export function Landing() {
 
       <main>
         <Hero />
-        <section id="how-it-works" className="border-y border-border bg-surface"><div className="mx-auto grid max-w-7xl gap-8 px-6 py-16 sm:grid-cols-3 sm:px-8"><Feature Icon={Upload} number="01" title="Add your files">Drop in a zip with an index file, or choose a GitHub repository you already own.</Feature><Feature Icon={Globe2} number="02" title="Go live immediately">We validate and publish your files to a secure public subdomain.</Feature><Feature Icon={History} number="03" title="Keep every version">Each deploy has a clear history, so promoting a previous version is instant.</Feature></div></section><section id="features" className="mx-auto grid max-w-7xl gap-12 px-6 py-20 sm:px-8 lg:grid-cols-[1.1fr_1fr] lg:items-end"><div><p className="text-xs font-semibold tracking-[0.13em] text-accent uppercase">Built for simple shipping</p><h2 className="mt-4 max-w-lg text-3xl font-semibold tracking-[-0.035em] text-text sm:text-4xl">A calmer way to manage small sites.</h2></div><ul className="space-y-4 text-sm leading-relaxed text-muted">{["A clean project list, designed for scanning—not dashboard clutter.", "Secure GitHub imports that deploy again when your branch changes.", "Transparent storage limits and deployment states, exactly where you need them."].map((item) => <li key={item} className="flex gap-3"><Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />{item}</li>)}</ul></section>
+        <HowItWorks />
+        <section id="features" className="mx-auto grid max-w-7xl gap-12 px-6 py-20 sm:px-8 lg:grid-cols-[1.1fr_1fr] lg:items-end"><div><p className="text-xs font-semibold tracking-[0.13em] text-accent uppercase">Built for simple shipping</p><h2 className="mt-4 max-w-lg text-3xl font-semibold tracking-[-0.035em] text-text sm:text-4xl">A calmer way to manage small sites.</h2></div><ul className="space-y-4 text-sm leading-relaxed text-muted">{["A clean project list, designed for scanning—not dashboard clutter.", "Secure GitHub imports that deploy again when your branch changes.", "Transparent storage limits and deployment states, exactly where you need them."].map((item) => <li key={item} className="flex gap-3"><Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />{item}</li>)}</ul></section>
       </main>
 
       <footer className="border-t border-border">
