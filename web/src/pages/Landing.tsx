@@ -1,9 +1,15 @@
 import type { ComponentType } from "react";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowRight, Check, CheckCircle2, Globe2, History, Upload, X } from "lucide-react";
+import { ArrowRight, CheckCircle2, Globe2, History, Upload, X } from "lucide-react";
 
 import { useAuth } from "../auth/AuthProvider";
+import {
+  CommitStripGraphic,
+  EnvKeysGraphic,
+  RollbackGraphic,
+  ZipDropGraphic,
+} from "../components/landing/FeatureGraphics";
 import { ServerClusterIllustration } from "../components/landing/ServerClusterIllustration";
 import { SitePreview } from "../components/landing/SitePreview";
 import { Button } from "../components/ui/button";
@@ -199,6 +205,60 @@ function HowItWorks() {
   );
 }
 
+/**
+ * The four things you actually touch.
+ *
+ * Each card leads with a small piece of the product rather than an icon, so the
+ * screens are recognisable before anyone signs in. The graphics carry no
+ * information the title and body do not also state in words, which is why they
+ * are aria-hidden.
+ */
+const FEATURES: { Graphic: () => React.ReactElement; title: string; body: string }[] = [
+  {
+    Graphic: ZipDropGraphic,
+    title: "Zip upload",
+    body: "Drop in a zip with an index file. No repository, no build step, nothing to configure.",
+  },
+  {
+    Graphic: CommitStripGraphic,
+    title: "GitHub auto-deploy",
+    body: "Connect a repository and every push to your branch deploys itself. Each attempt keeps its build log.",
+  },
+  {
+    Graphic: RollbackGraphic,
+    title: "Instant rollbacks",
+    body: "Every deploy keeps its own files, so promoting an earlier one is a single click and takes effect at once.",
+  },
+  {
+    Graphic: EnvKeysGraphic,
+    title: "Environment variables",
+    body: "Encrypted at rest and injected at build time. They are write-only - Dropbin never shows a value back.",
+  },
+];
+
+function Features() {
+  return (
+    <section id="features" className="mx-auto max-w-7xl px-6 py-20 sm:px-8 sm:py-24">
+      <div className="max-w-2xl">
+        <p className="text-xs font-semibold tracking-[0.13em] text-accent uppercase">Features</p>
+        <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-balance text-text sm:text-4xl">
+          The parts you actually touch.
+        </h2>
+      </div>
+
+      <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {FEATURES.map(({ Graphic, title, body }) => (
+          <article key={title}>
+            <Graphic />
+            <h3 className="mt-5 text-base font-semibold tracking-tight text-text">{title}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-muted">{body}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function Landing() {
   const { session, loading } = useAuth();
   const [params] = useSearchParams();
@@ -245,7 +305,7 @@ export function Landing() {
       <main>
         <Hero />
         <HowItWorks />
-        <section id="features" className="mx-auto grid max-w-7xl gap-12 px-6 py-20 sm:px-8 lg:grid-cols-[1.1fr_1fr] lg:items-end"><div><p className="text-xs font-semibold tracking-[0.13em] text-accent uppercase">Built for simple shipping</p><h2 className="mt-4 max-w-lg text-3xl font-semibold tracking-[-0.035em] text-text sm:text-4xl">A calmer way to manage small sites.</h2></div><ul className="space-y-4 text-sm leading-relaxed text-muted">{["A clean project list, designed for scanning—not dashboard clutter.", "Secure GitHub imports that deploy again when your branch changes.", "Transparent storage limits and deployment states, exactly where you need them."].map((item) => <li key={item} className="flex gap-3"><Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />{item}</li>)}</ul></section>
+        <Features />
       </main>
 
       <footer className="border-t border-border">
