@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowRight, CheckCircle2, Globe2, History, Upload, X } from "lucide-react";
+import { ArrowRight, Check, CheckCircle2, Globe2, History, Minus, Upload, X } from "lucide-react";
 
 import { useAuth } from "../auth/AuthProvider";
 import {
@@ -259,6 +259,189 @@ function Features() {
   );
 }
 
+/**
+ * Dropbin against the two free alternatives people actually weigh it against.
+ *
+ * Every cell was checked against primary documentation in September 2026, not
+ * from memory, and the table is deliberately not flattering: Dropbin loses the
+ * cold-start row outright and only wins one row cleanly. A comparison that made
+ * us win six out of six would be worth nothing to the reader, and wrong.
+ *
+ * Four of the six rows are a tie on the tick alone, so the qualifier under each
+ * tick is doing the real work - "public repos only" and "non-commercial only"
+ * are the difference between three identical ticks and three different offers.
+ * A bare tick row would be true and useless.
+ *
+ * Sources, all fetched rather than recalled:
+ *   Pages plans/limits  docs.github.com/en/pages/.../github-pages-limits
+ *   Pages HTTPS         docs.github.com/en/pages/.../securing-your-github-pages-site-with-https
+ *   Vercel Hobby        vercel.com/docs/plans/hobby  (non-commercial; rollback
+ *                       limited to the immediately previous deployment)
+ *   Vercel SSL          vercel.com/docs/domains/working-with-ssl
+ *   Render Free         render.com/docs/free  (spins down after 15 minutes
+ *                       idle, ~1 minute to wake) - this is our own weak spot
+ */
+type Cell = { state: "yes" | "no" | "partial"; note?: string };
+
+const COLUMNS = ["Dropbin", "GitHub Pages", "Vercel Hobby"] as const;
+
+const COMPARISON: { feature: string; cells: [Cell, Cell, Cell] }[] = [
+  {
+    feature: "Free hosting",
+    cells: [
+      { state: "yes" },
+      { state: "yes", note: "Public repos only" },
+      { state: "yes", note: "Non-commercial only" },
+    ],
+  },
+  {
+    feature: "Automatic HTTPS",
+    cells: [
+      { state: "yes", note: "On your Dropbin subdomain" },
+      { state: "yes", note: "Let's Encrypt" },
+      { state: "yes", note: "Let's Encrypt" },
+    ],
+  },
+  {
+    feature: "Deploys on git push",
+    cells: [
+      { state: "yes", note: "Via GitHub Actions" },
+      { state: "yes" },
+      { state: "yes" },
+    ],
+  },
+  {
+    feature: "One-click rollback",
+    cells: [
+      { state: "yes", note: "Any deploy still kept" },
+      { state: "no", note: "Revert the commit and rebuild" },
+      { state: "partial", note: "Previous deploy only" },
+    ],
+  },
+  {
+    feature: "No credit card",
+    cells: [{ state: "yes" }, { state: "yes" }, { state: "yes" }],
+  },
+  {
+    feature: "No cold starts",
+    cells: [
+      { state: "no", note: "First visit after 15 min idle waits ~1 min" },
+      { state: "yes", note: "Served from a CDN" },
+      { state: "yes", note: "Served from a CDN" },
+    ],
+  },
+];
+
+/**
+ * The icon is aria-hidden and paired with a visually hidden word, so the state
+ * survives for a screen reader and for anyone who cannot separate the red from
+ * the green - colour is never the only carrier.
+ */
+function StateMark({ state }: { state: Cell["state"] }) {
+  const marks = {
+    yes: { Icon: Check, className: "text-success", label: "Yes" },
+    no: { Icon: X, className: "text-destructive", label: "No" },
+    partial: { Icon: Minus, className: "text-muted", label: "Partial" },
+  };
+  const { Icon, className, label } = marks[state];
+  return (
+    <>
+      <Icon className={`mx-auto size-5 ${className}`} aria-hidden="true" />
+      <span className="sr-only">{label}</span>
+    </>
+  );
+}
+
+function Comparison() {
+  return (
+    <section className="border-y border-border bg-surface">
+      <div className="mx-auto max-w-5xl px-6 py-20 sm:px-8 sm:py-24">
+        <div className="max-w-2xl">
+          <p className="text-xs font-semibold tracking-[0.13em] text-accent uppercase">Honestly</p>
+          <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-balance text-text sm:text-4xl">
+            Where Dropbin wins, and where it doesn't.
+          </h2>
+        </div>
+
+        {/* Below sm the last two columns sit off-screen, and a cut-off edge is
+            too quiet an affordance on a phone - without this the table reads as
+            a one-column list of Dropbin ticks, which is the opposite of the
+            section's point. */}
+        <p className="mt-6 text-xs text-muted sm:hidden">
+          Scroll the table sideways to see GitHub Pages and Vercel Hobby.
+        </p>
+
+        {/* The table scrolls inside its own container so the page body never
+            does - three columns of qualifiers will not fit a phone.
+
+            `relative` is load-bearing, not decorative. Without a positioned
+            ancestor the min-w-2xl table leaked past the scroll container and
+            made the whole viewport scroll 215px sideways at 400px wide - the
+            wrapper clipped it visually while window.scrollX still moved, so it
+            was invisible in a screenshot and only showed up in the assertion.
+            Marking the wrapper as a containing block stops the leak; `contain:
+            paint` also worked, `isolation` did not. */}
+        <div className="relative mt-12 -mx-6 overflow-x-auto px-6 sm:mx-0 sm:px-0">
+          <table className="w-full min-w-2xl border-collapse text-sm">
+            <caption className="sr-only">
+              Dropbin compared with GitHub Pages and the Vercel Hobby plan
+            </caption>
+            <thead>
+              <tr>
+                <th className="w-[28%] pb-4 text-left font-medium text-muted" scope="col">
+                  <span className="sr-only">Capability</span>
+                </th>
+                {COLUMNS.map((name, i) => (
+                  <th
+                    key={name}
+                    scope="col"
+                    className={`pb-4 text-center text-sm font-semibold tracking-tight ${
+                      i === 0 ? "text-text" : "text-muted"
+                    }`}
+                  >
+                    {name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {COMPARISON.map(({ feature, cells }) => (
+                <tr key={feature} className="border-t border-border">
+                  <th scope="row" className="py-5 pr-4 text-left align-top font-medium text-text">
+                    {feature}
+                  </th>
+                  {cells.map((cell, i) => (
+                    <td
+                      key={COLUMNS[i]}
+                      className={`px-3 py-5 text-center align-top ${
+                        i === 0 ? "bg-surface-sunken" : ""
+                      }`}
+                    >
+                      <StateMark state={cell.state} />
+                      {cell.note && (
+                        <p className="mx-auto mt-1.5 max-w-[22ch] text-xs leading-snug text-balance text-muted">
+                          {cell.note}
+                        </p>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <p className="mt-8 max-w-2xl text-xs leading-relaxed text-muted">
+          Checked against GitHub and Vercel documentation in September 2026. Free tiers change
+          often, so verify anything here before you rely on it. Dropbin serves every request
+          through a single small instance that sleeps when idle — if you need a site that is
+          always warm, GitHub Pages and Vercel both put your files on a CDN and Dropbin does not.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 export function Landing() {
   const { session, loading } = useAuth();
   const [params] = useSearchParams();
@@ -306,6 +489,7 @@ export function Landing() {
         <Hero />
         <HowItWorks />
         <Features />
+        <Comparison />
       </main>
 
       <footer className="border-t border-border">
