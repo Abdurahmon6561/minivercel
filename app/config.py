@@ -89,7 +89,10 @@ def get_settings() -> Settings:
         admin_token=os.environ.get("ADMIN_TOKEN", "").strip(),
         max_deployment_bytes=_int("MAX_DEPLOYMENT_BYTES", 50 * MB),
         max_files_per_deployment=_int("MAX_FILES_PER_DEPLOYMENT", 500),
-        max_user_bytes=_int("MAX_USER_BYTES", 100 * MB),
+        # 250 MB, raised from the 100 MB used during early testing. Four users
+        # at full theoretical quota reach Supabase Free's 1 GB ceiling; real
+        # usage averages far below quota, so this fits 20+ comfortably.
+        max_user_bytes=_int("MAX_USER_BYTES", 250 * MB),
         max_proxy_bytes=_int("MAX_PROXY_BYTES", 5 * MB),
         # 600, not the 60 this started at: one page load of a real site is
         # dozens of requests, so 60/min throttled ordinary visitors. See

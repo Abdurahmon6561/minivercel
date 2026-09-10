@@ -26,8 +26,13 @@ This restriction is the entire security model. Do not weaken it.
 
 **Hard limits to design around**
 - Supabase free: 1 GB storage, 5 GB egress/month, 500 MB database.
-- Therefore: per-user quota of 100 MB, per-deployment cap of 50 MB, max 500 files.
+- Therefore: per-user quota of 250 MB, per-deployment cap of 50 MB, max 500 files.
   Enforce these in code from day one, not later.
+  100 MB was the early-testing value; 250 MB is the current free-tier default
+  (raised 2026-09-10 via `MAX_USER_BYTES` on Render). 250 MB × 4 users at full
+  theoretical quota = the 1 GB Supabase Free ceiling, and real-world usage
+  averages far below quota, so this fits 20+ users comfortably. Adjust upward
+  when Supabase Pro comes into play.
 - Render free tier: 750 instance hours/month across the WHOLE workspace.
   Always-on = ~720 hours. One free service fits. A second one does not.
 - Render's filesystem is ephemeral and free services cannot attach a disk.

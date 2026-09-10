@@ -442,6 +442,62 @@ function Comparison() {
   );
 }
 
+/**
+ * The closing call to action.
+ *
+ * Warm returns here, and only here after the hero. The two washes bookend the
+ * page - warm at the top, warm at the bottom, everything in between cool - so
+ * the accent reads as a frame rather than a colour sprinkled through the
+ * content. They are lighter than the hero's, because the hero should stay the
+ * loudest thing on the page.
+ *
+ * The headline deliberately has no highlighted word. "seconds" in the hero is
+ * the page's one display highlight, and repeating the trick here would spend it
+ * twice and make neither land.
+ */
+function CallToAction() {
+  const { session, loading } = useAuth();
+
+  return (
+    <section className="relative overflow-hidden">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute -top-44 left-1/2 size-[36rem] -translate-x-1/2 rounded-full bg-warm-orange/18 blur-[120px]" />
+        <div className="absolute -bottom-32 right-[6%] size-[26rem] rounded-full bg-warm-pink/14 blur-[110px]" />
+      </div>
+
+      <div className="mx-auto max-w-3xl px-6 py-24 text-center sm:px-8 sm:py-28">
+        <h2 className="text-4xl font-semibold tracking-[-0.045em] text-balance text-text sm:text-5xl">
+          Start deploying.
+        </h2>
+
+        <div className="mt-9 flex justify-center">
+          {/* Offering GitHub sign-in to someone already signed in is a dead
+              end, so the button changes rather than the page pretending not to
+              know who is reading it. */}
+          {!loading &&
+            (session ? (
+              <Link to="/projects">
+                <Button variant="primary" size="lg" icon={<ArrowRight />}>
+                  Open your dashboard
+                </Button>
+              </Link>
+            ) : (
+              <Link to="/login">
+                <Button variant="primary" size="lg" icon={<GithubMark className="size-4" />}>
+                  Continue with GitHub
+                </Button>
+              </Link>
+            ))}
+        </div>
+
+        <p className="mt-6 text-sm text-muted">
+          Free while in beta. No credit card. No lock-in.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 export function Landing() {
   const { session, loading } = useAuth();
   const [params] = useSearchParams();
@@ -490,12 +546,27 @@ export function Landing() {
         <HowItWorks />
         <Features />
         <Comparison />
+        <CallToAction />
       </main>
 
+      {/* Deliberately bare. This is a hosting platform, not a publication - a
+          column of link lists would be inventing pages that do not exist. The
+          unDraw credit is here because we use their artwork in the hero, and
+          the licence asks for attribution somewhere on the site. */}
       <footer className="border-t border-border">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-8 text-sm text-muted sm:px-8">
-          <Wordmark />
-          <span>© {new Date().getFullYear()} Dropbin</span>
+        <div className="mx-auto flex max-w-7xl flex-col items-center gap-3 px-6 py-8 text-sm text-muted sm:flex-row sm:justify-between sm:px-8">
+          <div className="flex items-center gap-3">
+            <Wordmark />
+            <span>© {new Date().getFullYear()} Dropbin</span>
+          </div>
+          <a
+            className="transition-colors hover:text-text"
+            href="https://undraw.co"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Illustrations by unDraw
+          </a>
         </div>
       </footer>
     </div>
