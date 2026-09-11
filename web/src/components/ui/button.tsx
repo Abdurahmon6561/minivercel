@@ -22,6 +22,14 @@ import { cn } from "../../lib/cn";
  *   subtle       destructive's quieter form - outlined, for a delete that opens
  *                a confirmation rather than one that acts immediately.
  *   link         inline in prose, where a button-shaped thing would be wrong.
+ *
+ * Fully rounded at every size, not `rounded-md`. The landing page's CTAs were
+ * pill-shaped from the start; the dashboard's were not, which is what made the
+ * product read as two different pieces of software stitched together the
+ * moment you followed "Continue with GitHub" from one into the other. This is
+ * the one place that shape lives, so a dashboard button and a landing button
+ * are now the same shape everywhere by construction rather than by each
+ * caller remembering to add `rounded-full`.
  */
 const button = cva(
   [
@@ -57,10 +65,10 @@ const button = cva(
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        sm: "h-8 rounded-sm px-3 text-xs [&_svg]:size-3.5",
-        md: "h-9 rounded-md px-4 text-sm [&_svg]:size-4",
-        lg: "h-11 rounded-md px-6 text-[15px] [&_svg]:size-4",
-        icon: "size-9 rounded-md [&_svg]:size-4",
+        sm: "h-8 rounded-full px-3.5 text-xs [&_svg]:size-3.5",
+        md: "h-9 rounded-full px-5 text-sm [&_svg]:size-4",
+        lg: "h-11 rounded-full px-6 text-[15px] [&_svg]:size-4",
+        icon: "size-9 rounded-full [&_svg]:size-4",
       },
       block: { true: "w-full", false: "" },
     },

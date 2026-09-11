@@ -4,13 +4,14 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, Check, CheckCircle2, Globe2, History, Minus, Upload, X } from "lucide-react";
 
 import { useAuth } from "../auth/AuthProvider";
+import { DeployOrbitIllustration } from "../components/landing/DeployOrbitIllustration";
 import {
   CommitStripGraphic,
   EnvKeysGraphic,
   RollbackGraphic,
   ZipDropGraphic,
 } from "../components/landing/FeatureGraphics";
-import { ServerClusterIllustration } from "../components/landing/ServerClusterIllustration";
+import { Reveal } from "../components/landing/Reveal";
 import { SitePreview } from "../components/landing/SitePreview";
 import { Button } from "../components/ui/button";
 import { GithubMark } from "../components/ui/github-mark";
@@ -56,9 +57,10 @@ function DeletedNotice() {
  * tokens.css. They are not on the button, the pill or the badge; those stay
  * indigo, cool and semantic.
  *
- * `text-primary` on the illustration wrapper is what currentColor resolves to
- * inside it, so the accent in the drawing is the brand indigo in both themes
- * rather than unDraw's purple.
+ * The illustration is a deploy happening - a code window orbited by the two
+ * cool accents, reporting a Ready state - rather than a generic stock drawing,
+ * so it reads as the product on first look instead of as decoration. See
+ * DeployOrbitIllustration for why it is built from tokens, not an SVG import.
  */
 function Hero() {
   const { session, loading } = useAuth();
@@ -73,14 +75,17 @@ function Hero() {
         <div className="absolute -bottom-40 -left-24 size-[30rem] rounded-full bg-primary/10 blur-[110px]" />
       </div>
 
-      <div className="mx-auto grid max-w-7xl items-center gap-14 px-6 pt-16 pb-20 sm:px-8 sm:pt-24 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:pb-28">
-        <div className="max-w-2xl">
+      <div className="mx-auto grid max-w-7xl items-center gap-14 px-6 pt-16 pb-24 sm:px-8 sm:pt-24 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:pb-32">
+        <Reveal className="max-w-2xl">
           <p className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium text-muted shadow-sm">
             <span className="size-1.5 rounded-full bg-success" />
             Static deployment, without the ceremony
           </p>
 
-          <h1 className="mt-7 text-5xl leading-[1.03] font-semibold tracking-[-0.055em] text-balance text-text sm:text-6xl">
+          {/* One size step up from the previous draft: a 5-word, 2-line
+              headline is exactly the case where a bigger display size reads as
+              confident rather than as an overflow bug. */}
+          <h1 className="mt-7 text-6xl leading-[0.98] font-semibold tracking-[-0.055em] text-balance text-text sm:text-7xl">
             Deploy static sites in <span className="text-warm-orange">seconds</span>.
           </h1>
 
@@ -90,7 +95,15 @@ function Hero() {
 
           <div className="mt-9 flex flex-wrap items-center gap-3">
             <Link to="/login">
-              <Button variant="primary" size="lg" icon={<GithubMark className="size-4" />}>
+              {/* The lift-on-hover is new: it marks this specific button as the
+                  one action this whole page exists for, which is also why it
+                  is not on the secondary button beside it. */}
+              <Button
+                variant="primary"
+                size="lg"
+                icon={<GithubMark className="size-4" />}
+                className="hover:-translate-y-0.5"
+              >
                 Continue with GitHub
               </Button>
             </Link>
@@ -121,11 +134,11 @@ function Hero() {
               </Link>
             </p>
           )}
-        </div>
+        </Reveal>
 
-        <div className="relative lg:pl-4">
-          <ServerClusterIllustration className="mx-auto w-full max-w-[30rem] text-primary lg:max-w-none" />
-        </div>
+        <Reveal delay={150} className="relative lg:pl-4">
+          <DeployOrbitIllustration className="lg:max-w-none" />
+        </Reveal>
       </div>
     </section>
   );
@@ -164,42 +177,49 @@ const STEPS: { Icon: ComponentType<{ className?: string }>; number: string; titl
 function HowItWorks() {
   return (
     <section id="how-it-works" className="border-y border-border bg-surface">
-      <div className="mx-auto max-w-7xl px-6 py-20 sm:px-8 sm:py-24">
-        <div className="max-w-2xl">
+      <div className="mx-auto max-w-7xl px-6 py-24 sm:px-8 sm:py-28">
+        <Reveal className="max-w-2xl">
           <p className="text-xs font-semibold tracking-[0.13em] text-accent uppercase">How it works</p>
           <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-balance text-text sm:text-4xl">
             Three steps, and no configuration to learn.
           </h2>
-        </div>
+        </Reveal>
 
-        <ol className="mt-14 grid gap-12 sm:grid-cols-3 sm:gap-8">
-          {STEPS.map(({ Icon, number, title, body }) => (
-            <li key={number} className="relative border-t border-border pt-9">
-              {/* Straddles the border, and masks it with the section's own
-                  background so the rail reads as passing behind the node. */}
-              <span
-                aria-hidden="true"
-                className="absolute -top-4 left-0 flex size-8 items-center justify-center rounded-full border border-border bg-surface font-mono text-xs text-muted"
-              >
-                {number}
-              </span>
-              <h3 className="flex items-center gap-2 text-base font-semibold tracking-tight text-text">
-                <Icon className="size-4 shrink-0 text-accent" aria-hidden="true" />
-                {title}
-              </h3>
-              <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted">{body}</p>
-            </li>
-          ))}
-        </ol>
+        <Reveal delay={100}>
+          <ol className="mt-14 grid gap-12 sm:grid-cols-3 sm:gap-8">
+            {STEPS.map(({ Icon, number, title, body }) => (
+              <li key={number} className="relative border-t border-border pt-9">
+                {/* A bead straddling the border, masking it with the section's
+                    own background so the rail reads as passing behind the
+                    node - the number itself now lives in the heading row
+                    below, big enough to carry real typographic weight rather
+                    than hiding inside a small mono badge. */}
+                <span aria-hidden="true" className="absolute -top-1.5 left-0 size-3 rounded-full bg-accent" />
+                <h3 className="flex items-center justify-between gap-3 text-base font-semibold tracking-tight text-text">
+                  <span className="flex items-center gap-2">
+                    <Icon className="size-4 shrink-0 text-accent" aria-hidden="true" />
+                    {title}
+                  </span>
+                  <span aria-hidden="true" className="font-mono text-2xl font-bold text-border-strong sm:text-3xl">
+                    {number}
+                  </span>
+                </h3>
+                <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted">{body}</p>
+              </li>
+            ))}
+          </ol>
+        </Reveal>
 
         {/* A figure, not a decorative div: it is the outcome the three steps
             produce, and the caption is what ties it to them. */}
-        <figure className="mt-16">
-          <SitePreview />
-          <figcaption className="mt-4 text-center text-sm text-muted">
-            A finished deployment: the public URL, its status, and the commit it came from.
-          </figcaption>
-        </figure>
+        <Reveal delay={200}>
+          <figure className="mt-16">
+            <SitePreview />
+            <figcaption className="mt-4 text-center text-sm text-muted">
+              A finished deployment: the public URL, its status, and the commit it came from.
+            </figcaption>
+          </figure>
+        </Reveal>
       </div>
     </section>
   );
@@ -238,23 +258,29 @@ const FEATURES: { Graphic: () => React.ReactElement; title: string; body: string
 
 function Features() {
   return (
-    <section id="features" className="mx-auto max-w-7xl px-6 py-20 sm:px-8 sm:py-24">
-      <div className="max-w-2xl">
+    <section id="features" className="mx-auto max-w-7xl px-6 py-24 sm:px-8 sm:py-28">
+      <Reveal className="max-w-2xl">
         <p className="text-xs font-semibold tracking-[0.13em] text-accent uppercase">Features</p>
         <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-balance text-text sm:text-4xl">
           The parts you actually touch.
         </h2>
-      </div>
+      </Reveal>
 
-      <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {FEATURES.map(({ Graphic, title, body }) => (
-          <article key={title}>
-            <Graphic />
-            <h3 className="mt-5 text-base font-semibold tracking-tight text-text">{title}</h3>
-            <p className="mt-2 text-sm leading-relaxed text-muted">{body}</p>
-          </article>
-        ))}
-      </div>
+      <Reveal delay={100}>
+        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {/* The four graphics are built to align as equal siblings (see
+              FeatureGraphics.tsx) - so the lift is what signals "this is
+              worth a closer look" rather than a resize that would fight the
+              graphics' own layout. */}
+          {FEATURES.map(({ Graphic, title, body }) => (
+            <article key={title} className="transition-transform duration-200 hover:-translate-y-1">
+              <Graphic />
+              <h3 className="mt-5 text-base font-semibold tracking-tight text-text">{title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted">{body}</p>
+            </article>
+          ))}
+        </div>
+      </Reveal>
     </section>
   );
 }
@@ -355,13 +381,16 @@ function StateMark({ state }: { state: Cell["state"] }) {
 function Comparison() {
   return (
     <section className="border-y border-border bg-surface">
-      <div className="mx-auto max-w-5xl px-6 py-20 sm:px-8 sm:py-24">
-        <div className="max-w-2xl">
-          <p className="text-xs font-semibold tracking-[0.13em] text-accent uppercase">Honestly</p>
-          <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-balance text-text sm:text-4xl">
+      <div className="mx-auto max-w-7xl px-6 py-24 sm:px-8 sm:py-28">
+        {/* No eyebrow here on purpose: How it works and Features already carry
+            one each, and a third small-caps label above this headline would
+            push the page past one eyebrow per three sections. The headline
+            itself ("wins, and where it doesn't") already says "honestly". */}
+        <Reveal className="max-w-2xl">
+          <h2 className="text-3xl font-semibold tracking-[-0.035em] text-balance text-text sm:text-4xl">
             Where Dropbin wins, and where it doesn't.
           </h2>
-        </div>
+        </Reveal>
 
         {/* Below sm the last two columns sit off-screen, and a cut-off edge is
             too quiet an affordance on a phone - without this the table reads as
@@ -381,7 +410,7 @@ function Comparison() {
             was invisible in a screenshot and only showed up in the assertion.
             Marking the wrapper as a containing block stops the leak; `contain:
             paint` also worked, `isolation` did not. */}
-        <div className="relative mt-12 -mx-6 overflow-x-auto px-6 sm:mx-0 sm:px-0">
+        <Reveal delay={100} className="relative mt-12 -mx-6 overflow-x-auto px-6 sm:mx-0 sm:px-0">
           <table className="w-full min-w-2xl border-collapse text-sm">
             <caption className="sr-only">
               Dropbin compared with GitHub Pages and the Vercel Hobby plan
@@ -429,12 +458,12 @@ function Comparison() {
               ))}
             </tbody>
           </table>
-        </div>
+        </Reveal>
 
         <p className="mt-8 max-w-2xl text-xs leading-relaxed text-muted">
           Checked against GitHub and Vercel documentation in September 2026. Free tiers change
           often, so verify anything here before you rely on it. Dropbin serves every request
-          through a single small instance that sleeps when idle — if you need a site that is
+          through a single small instance that sleeps when idle. If you need a site that is
           always warm, GitHub Pages and Vercel both put your files on a CDN and Dropbin does not.
         </p>
       </div>
@@ -465,8 +494,11 @@ function CallToAction() {
         <div className="absolute -bottom-32 right-[6%] size-[26rem] rounded-full bg-warm-pink/14 blur-[110px]" />
       </div>
 
-      <div className="mx-auto max-w-3xl px-6 py-24 text-center sm:px-8 sm:py-28">
-        <h2 className="text-4xl font-semibold tracking-[-0.045em] text-balance text-text sm:text-5xl">
+      <Reveal className="mx-auto max-w-3xl px-6 py-28 text-center sm:px-8 sm:py-32">
+        {/* Matches the hero's new scale, so the two warm moments bookend the
+            page at the same visual weight instead of the closer reading as an
+            afterthought. */}
+        <h2 className="text-5xl font-semibold tracking-[-0.045em] text-balance text-text sm:text-6xl">
           Start deploying.
         </h2>
 
@@ -493,7 +525,7 @@ function CallToAction() {
         <p className="mt-6 text-sm text-muted">
           Free while in beta. No credit card. No lock-in.
         </p>
-      </div>
+      </Reveal>
     </section>
   );
 }
@@ -504,40 +536,67 @@ export function Landing() {
   const deleted = params.get("deleted") !== null;
 
   return (
-    <div className="min-h-screen overflow-hidden bg-bg">
-      <header className="relative z-10">
-        <div className="mx-auto flex max-w-7xl items-center px-6 py-5 sm:px-8">
-          <Wordmark />
-          <nav
-            className="ml-10 hidden items-center gap-6 text-sm text-muted md:flex"
-            aria-label="Marketing navigation"
-          >
-            <a className="transition-colors hover:text-text" href="#how-it-works">
-              How it works
-            </a>
-            <a className="transition-colors hover:text-text" href="#features">
-              Features
-            </a>
-          </nav>
-          <div className="ml-auto flex items-center gap-2">
-            <ThemeToggle />
-            {!loading &&
-              (session ? (
-                <Link to="/projects">
-                  <Button variant="secondary" size="sm">
-                    Open dashboard
-                  </Button>
-                </Link>
-              ) : (
-                <Link to="/login">
-                  <Button variant="secondary" size="sm">
-                    Sign in
-                  </Button>
-                </Link>
-              ))}
+    <div className="min-h-screen bg-bg">
+      {/* Fixed to the top of the viewport rather than scrolling away, so
+          "Continue with GitHub" and the theme toggle are always one click
+          away no matter how far down the page you are.
+
+          A floating rounded bar with visible margin either side, not an
+          edge-to-edge strip - the outer div carries the sticky positioning
+          and the inset (its padding is what leaves the page background
+          visible at the corners), and the actual bordered, rounded surface
+          is the `<header>` inside it. Splitting them this way means the
+          inset survives scrolling: a rounded/margined header with no
+          separate positioning wrapper would need its OWN top/side margin,
+          which pulls it a few pixels short of true position:sticky's top
+          edge and reintroduces the "gap that isn't quite there" bug that a
+          plain `top-2` offset alone would leave.
+
+          `sticky`, not `fixed`: a truly fixed header needs a matching
+          top-padding spacer on the content below it, which drifts out of
+          sync the moment the header's own height changes. Sticky achieves
+          the same pinned-at-top behaviour without that second number to
+          maintain, and the two decorative-blob sections below now clip
+          themselves (`overflow-hidden` on each `<section>`) rather than
+          relying on a wrapper-level `overflow-hidden` - that wrapper rule
+          would otherwise make this element's nearest ancestor a clipping
+          container, which silently breaks `position: sticky` in every
+          browser regardless of whether anything actually overflows it. */}
+      <div className="sticky top-0 z-40 px-3 pt-3 sm:px-6 sm:pt-4">
+        <header className="mx-auto max-w-7xl rounded-full border border-border bg-surface/95 shadow-lg backdrop-blur-md">
+          <div className="flex items-center px-6 py-3.5 sm:px-8">
+            <Wordmark />
+            <nav
+              className="ml-10 hidden items-center gap-6 text-sm text-muted md:flex"
+              aria-label="Marketing navigation"
+            >
+              <a className="transition-colors hover:text-text" href="#how-it-works">
+                How it works
+              </a>
+              <a className="transition-colors hover:text-text" href="#features">
+                Features
+              </a>
+            </nav>
+            <div className="ml-auto flex items-center gap-2">
+              <ThemeToggle />
+              {!loading &&
+                (session ? (
+                  <Link to="/projects">
+                    <Button variant="secondary" size="sm">
+                      Open dashboard
+                    </Button>
+                  </Link>
+                ) : (
+                  <Link to="/login">
+                    <Button variant="secondary" size="sm">
+                      Sign in
+                    </Button>
+                  </Link>
+                ))}
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      </div>
 
       {deleted && <DeletedNotice />}
 

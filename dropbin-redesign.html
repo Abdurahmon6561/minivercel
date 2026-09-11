@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dropbin — Ship faster</title>
+<meta name="description" content="A cinematic redesign for Dropbin, a simple static deployment platform." />
+<style>
+:root{
+  --bg:#060708;
+  --panel:#0c0f13;
+  --panel2:#10141a;
+  --line:rgba(255,255,255,.09);
+  --text:#f4f6fb;
+  --muted:#8d96a8;
+  --purple:#8b7cff;
+  --purple2:#635bff;
+  --cyan:#42d7ff;
+  --green:#50e6a0;
+  --orange:#ff8a3d;
+  --max:1180px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+button{font:inherit}
+::selection{background:#8b7cff55}
+.noise{position:fixed;inset:0;pointer-events:none;opacity:.035;z-index:20;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.6'/%3E%3C/svg%3E")}
+.container{width:min(var(--max),calc(100% - 44px));margin:auto}
+.nav{height:76px;display:flex;align-items:center;justify-content:space-between;position:relative;z-index:10}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.03em}
+.brand-mark{width:20px;height:20px;display:grid;place-items:center;transform:rotate(30deg)}
+.brand-mark:before{content:"";width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:15px solid #8b7cff;filter:drop-shadow(0 0 10px #756bff)}
+.nav-links{display:flex;gap:30px;margin-left:70px;margin-right:auto;color:#8f97a8;font-size:13px}
+.nav-links a{transition:.25s}
+.nav-links a:hover{color:#fff}
+.nav-actions{display:flex;gap:9px;align-items:center}
+.icon-btn,.signin{border:1px solid var(--line);background:#0b0e13;color:#b8c0ce;border-radius:9px;padding:8px 11px;font-size:12px}
+.signin{color:#fff;padding:9px 14px}
+.hero{min-height:740px;display:grid;grid-template-columns:1fr 1fr;align-items:center;position:relative;padding:65px 0 90px}
+.hero:before{content:"";position:absolute;width:680px;height:500px;right:-220px;top:80px;background:radial-gradient(circle,#5d52ff1c,transparent 66%);filter:blur(12px);pointer-events:none}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;border:1px solid #26323a;background:#0c1215;color:#8da0ae;border-radius:99px;padding:7px 11px;font-size:11px;box-shadow:inset 0 0 20px #4de1ff08}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green)}
+h1{font-size:clamp(52px,6.3vw,88px);line-height:.91;letter-spacing:-.065em;margin:24px 0 24px;max-width:690px}
+.gradient-text{background:linear-gradient(100deg,#ff9a4d,#ff633d 55%,#ffb56f);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero-copy{font-size:16px;line-height:1.65;color:var(--muted);max-width:530px}
+.ctas{display:flex;gap:12px;align-items:center;margin-top:30px}
+.primary{background:linear-gradient(135deg,#9589ff,#7165ff);color:#fff;border:0;border-radius:10px;padding:13px 18px;font-weight:650;box-shadow:0 8px 35px #6e61ff30;cursor:pointer;transition:.25s}
+.primary:hover{transform:translateY(-2px);box-shadow:0 13px 45px #6e61ff45}
+.secondary{color:#aab2c0;font-size:13px;padding:12px 5px}
+.secondary span{display:inline-block;margin-left:5px;transition:.2s}.secondary:hover span{transform:translateX(4px)}
+.status{display:inline-flex;gap:10px;align-items:center;margin-top:25px;border:1px solid var(--line);background:#0b0e12;border-radius:10px;padding:9px 12px;font:11px ui-monospace,SFMono-Regular,monospace;color:#7f8a9c}
+.status b{color:#58e4a1;font-weight:500}
+.hero-art{height:530px;position:relative;display:grid;place-items:center}
+.orbit{position:absolute;width:470px;height:470px;border:1px solid #242933;border-radius:50%;animation:spin 18s linear infinite}
+.orbit:before,.orbit:after{content:"";position:absolute;width:7px;height:7px;border-radius:50%;background:#8d82ff;box-shadow:0 0 18px #8d82ff}
+.orbit:before{left:49%;top:-4px}.orbit:after{right:5%;top:63%;background:#3ed7ff;box-shadow:0 0 18px #3ed7ff}
+.orbit2{width:330px;height:330px;border-color:#1c212a;animation:spin 11s linear reverse infinite}
+.orbit3{width:245px;height:245px;border-color:#171b23;animation:spin 8s linear infinite}
+.device{position:absolute;width:230px;height:170px;background:linear-gradient(145deg,#151a21,#090b0f);border:1px solid #252c37;border-radius:14px;box-shadow:0 35px 80px #000,0 0 60px #675cff12;overflow:hidden}
+.device .bar{height:20px;border-bottom:1px solid #252a34;background:#0b0d12;display:flex;gap:5px;align-items:center;padding:0 9px}
+.device .bar i{width:5px;height:5px;border-radius:50%;background:#ff5c61}.device .bar i:nth-child(2){background:#e6c84c}.device .bar i:nth-child(3){background:#42d68d}
+.code{padding:18px}.line{height:7px;border-radius:5px;background:#303642;margin:10px 0}.line.p{background:#7d72ff;width:48%}.line.c{background:#39cce9;width:65%}.line.s{width:78%}
+.stack{position:absolute;bottom:43px;right:16px;width:115px;display:flex;flex-direction:column;gap:7px}
+.stack div{height:22px;background:linear-gradient(90deg,#313640,#171b21);border:1px solid #3b414d;border-radius:3px;box-shadow:0 0 18px #6e64ff10;position:relative}
+.stack div:before{content:"";position:absolute;left:0;top:-2px;width:100%;height:3px;background:#8176ff;box-shadow:0 0 12px #8176ff88}
+.floating{position:absolute;border:1px solid var(--line);background:#0b0e13d9;backdrop-filter:blur(12px);border-radius:11px;padding:10px 12px;font-size:10px;color:#9ca5b4;box-shadow:0 20px 45px #0008;animation:float 5s ease-in-out infinite}
+.floating strong{color:#f1f4f9}.f1{top:50px;right:35px}.f2{left:30px;bottom:90px;animation-delay:-2s}.f3{right:70px;bottom:25px;animation-delay:-3.5s}
+section{position:relative}
+.dark-section{background:#0b0e13;border-top:1px solid #11151c;border-bottom:1px solid #11151c}
+.section-pad{padding:105px 0}
+.section-label{font-size:10px;text-transform:uppercase;letter-spacing:.17em;color:#39d3f0;font-weight:750;margin-bottom:13px}
+h2{font-size:clamp(34px,4vw,54px);line-height:.98;letter-spacing:-.055em;margin:0 0 20px}
+.lead{color:var(--muted);font-size:14px;line-height:1.7;max-width:570px}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;margin-top:65px;background:var(--line);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.step{background:#0b0e13;padding:31px;min-height:210px;position:relative;transition:.3s}
+.step:hover{background:#10141a}.step:after{content:"";position:absolute;right:25px;top:28px;font:12px ui-monospace;color:#4c5362}
+.step:nth-child(1):after{content:"01"}.step:nth-child(2):after{content:"02"}.step:nth-child(3):after{content:"03"}
+.step-icon{width:34px;height:34px;border-radius:10px;background:#111721;border:1px solid #242d38;display:grid;place-items:center;color:#6fe6ff;margin-bottom:25px}
+.step h3{font-size:15px;margin:0 0 9px}.step p{font-size:12px;line-height:1.6;color:#7e8796;max-width:250px}
+.deploy-demo{margin-top:52px;border:1px solid #242a34;border-radius:15px;background:#080a0d;box-shadow:0 30px 90px #0008;overflow:hidden}
+.demo-top{height:39px;border-bottom:1px solid #20252e;background:#0c0f14;display:flex;align-items:center;padding:0 14px;gap:6px}
+.demo-top i{width:6px;height:6px;border-radius:50%;background:#ed5b63}.demo-top i:nth-child(2){background:#d5bc50}.demo-top i:nth-child(3){background:#4ccf83}
+.demo-url{margin-left:12px;background:#080a0e;border:1px solid #1d222b;padding:5px 10px;border-radius:5px;flex:1;font:9px monospace;color:#7b8493}
+.demo-body{display:grid;grid-template-columns:1fr 170px;min-height:260px}.demo-main{padding:28px 30px}.demo-sidebar{border-left:1px solid #20252e;padding:24px}
+.skeleton{height:9px;border-radius:4px;background:#282e38;margin:14px 0;width:75%}.skeleton.p{background:#7c71ff;width:36%;height:6px}.skeleton.big{height:17px;background:#d9dde5;width:52%}
+.demo-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:28px}.demo-card{height:58px;border:1px solid #1b2028;border-radius:7px;background:#050608}
+.ready{color:#55dfa0;font-size:10px}.deploy-id{font:9px monospace;color:#717b8c;margin-top:30px}
+.features{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-top:48px}
+.feature{padding:10px 0}.feature-visual{height:120px;border:1px solid #202630;background:#090b0f;border-radius:13px;margin-bottom:19px;position:relative;overflow:hidden;padding:16px}
+.feature h3{font-size:12px;margin:0 0 8px}.feature p{font-size:11px;color:#7e8796;line-height:1.6;margin:0}
+.mini-bar{height:6px;background:#303642;border-radius:3px;margin:9px 0}.mini-bar.p{background:#756aff;width:58%}.mini-pill{position:absolute;right:10px;top:10px;font-size:8px;border:1px solid #214b3d;color:#55dfa0;padding:3px 6px;border-radius:99px}
+.compare{background:#0d1016}.table-wrap{margin-top:45px;border:1px solid #202630;border-radius:14px;overflow:hidden;background:#090b0f}
+table{width:100%;border-collapse:collapse;font-size:11px}th,td{padding:17px 15px;border-bottom:1px solid #181d25;text-align:center;color:#788292}th{font-weight:600;color:#a9b1bf;background:#0c0f14}td:first-child,th:first-child{text-align:left;color:#c6ccd7;width:30%}tr:last-child td{border-bottom:0}.yes{color:#4edc9b;font-size:15px}.no{color:#ef6868;font-size:15px}
+.cta{padding:125px 0;text-align:center;overflow:hidden}.cta:before{content:"";position:absolute;width:700px;height:300px;left:50%;top:50%;transform:translate(-50%,-50%);background:radial-gradient(ellipse,#695fff18,transparent 65%);pointer-events:none}
+.cta h2{font-size:clamp(48px,6vw,76px);position:relative}.cta p{color:#788292;font-size:12px;margin:18px 0 25px;position:relative}
+.footer{border-top:1px solid #151920;padding:24px 0;color:#707989;font-size:10px}.footer-inner{display:flex;justify-content:space-between}
+.reveal{opacity:0;transform:translateY(25px);transition:opacity .75s ease,transform .75s ease}.reveal.show{opacity:1;transform:none}
+.cursor-glow{position:fixed;width:280px;height:280px;border-radius:50%;background:#7167ff12;filter:blur(45px);pointer-events:none;z-index:0;transform:translate(-50%,-50%);transition:left .15s,top .15s}
+@keyframes spin{to{transform:rotate(360deg)}}@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}@keyframes pulse{50%{opacity:.45}}
+@media(max-width:900px){.hero{grid-template-columns:1fr;padding-top:45px}.hero-art{height:430px;margin-top:20px}.nav-links{display:none}.features{grid-template-columns:repeat(2,1fr)}.steps{grid-template-columns:1fr}.demo-body{grid-template-columns:1fr}.demo-sidebar{display:none}.table-wrap{overflow:auto}table{min-width:700px}}
+@media(max-width:560px){.container{width:min(100% - 28px,var(--max))}.hero{min-height:auto}.hero-art{transform:scale(.8);margin:-30px -45px}.features{grid-template-columns:1fr}.ctas{flex-wrap:wrap}.footer-inner{gap:20px;flex-direction:column}.section-pad{padding:75px 0}h1{font-size:54px}}
+</style>
+</head>
+<body>
+<div class="noise"></div><div class="cursor-glow" id="glow"></div>
+
+<header class="container nav">
+  <a class="brand" href="#"><span class="brand-mark"></span>Dropbin</a>
+  <nav class="nav-links"><a href="#how">How it works</a><a href="#features">Features</a><a href="#compare">Compare</a></nav>
+  <div class="nav-actions"><button class="icon-btn">☾</button><button class="icon-btn">⌘</button><a class="signin" href="#">Sign in</a></div>
+</header>
+
+<main>
+<section class="container hero">
+  <div class="hero-copy-wrap reveal">
+    <div class="eyebrow"><span class="dot"></span>Static deployment, without the ceremony</div>
+    <h1>Deploy static<br>sites in <span class="gradient-text">seconds.</span></h1>
+    <p class="hero-copy">Push a zip or a GitHub repo. Get a public URL instantly. Roll back with one click. No configuration rabbit hole.</p>
+    <div class="ctas"><a class="primary" href="#how">⌁&nbsp; Continue with GitHub</a><a class="secondary" href="#how">See how it works <span>→</span></a></div>
+    <div class="status"><b>● Ready</b><span>blue-forest-4821.dropbin.xyz</span></div>
+  </div>
+
+  <div class="hero-art reveal">
+    <div class="orbit"></div><div class="orbit orbit2"></div><div class="orbit orbit3"></div>
+    <div class="device">
+      <div class="bar"><i></i><i></i><i></i></div>
+      <div class="code"><div class="line p"></div><div class="line c"></div><div class="line"></div><div class="line s"></div></div>
+    </div>
+    <div class="stack"><div></div><div></div><div></div><div></div><div></div></div>
+    <div class="floating f1">DEPLOYMENT<br><strong>● Ready</strong></div>
+    <div class="floating f2">COMMIT&nbsp; <strong>7d564e4</strong><br>live now</div>
+    <div class="floating f3">HTTPS&nbsp; ✓ &nbsp; ROLLBACK&nbsp; ✓</div>
+  </div>
+</section>
+
+<section id="how" class="dark-section">
+<div class="container section-pad">
+  <div class="reveal"><div class="section-label">How it works</div><h2>Three steps.<br>No configuration to learn.</h2><p class="lead">From a local folder to a production URL without the usual setup. Dropbin stays out of your way.</p></div>
+  <div class="steps reveal">
+    <article class="step"><div class="step-icon">↥</div><h3>Add your files</h3><p>Import a GitHub repository or drop in a zip with an index file. Nothing else required.</p></article>
+    <article class="step"><div class="step-icon">◈</div><h3>Dropbin publishes it</h3><p>Your build runs automatically and your site gets a fast HTTPS subdomain.</p></article>
+    <article class="step"><div class="step-icon">↶</div><h3>Roll back any time</h3><p>Every deployment stays versioned, so going back is always one click away.</p></article>
+  </div>
+  <div class="deploy-demo reveal">
+    <div class="demo-top"><i></i><i></i><i></i><div class="demo-url">blue-forest-4821.dropbin.xyz</div></div>
+    <div class="demo-body"><div class="demo-main"><div class="skeleton p"></div><div class="skeleton big"></div><div class="skeleton"></div><div class="skeleton" style="width:90%"></div><div class="skeleton p" style="width:18%;height:20px;margin-top:22px"></div><div class="demo-cards"><div class="demo-card"></div><div class="demo-card"></div><div class="demo-card"></div></div></div><aside class="demo-sidebar"><div class="section-label" style="color:#747d8d">Deployment</div><div class="ready">● Ready</div><div class="deploy-id">7d564e4<br>Just now</div><p style="font-size:9px;color:#707989;line-height:1.7;margin-top:22px">Live from a zip upload.</p></aside></div>
+  </div>
+</div>
+</section>
+
+<section id="features" class="container section-pad">
+  <div class="reveal"><div class="section-label">Features</div><h2>The parts<br>you actually touch.</h2></div>
+  <div class="features">
+    <article class="feature reveal"><div class="feature-visual"><div style="font-size:28px">↥</div><div class="mini-pill">ZIP</div><div style="font-size:9px;color:#697383;margin-top:12px">Drop to deploy</div></div><h3>Zip upload</h3><p>Drop a zip with an index file. No repository, no build step, nothing to configure.</p></article>
+    <article class="feature reveal"><div class="feature-visual"><div class="mini-bar p"></div><div class="mini-bar"></div><div class="mini-bar" style="width:70%"></div><div class="mini-pill">Ready</div></div><h3>GitHub auto-deploy</h3><p>Connect a repository and every push triggers a deployment automatically.</p></article>
+    <article class="feature reveal"><div class="feature-visual"><div style="font:10px monospace;color:#7f8998">7d564e4&nbsp; ↓</div><div class="mini-bar p"></div><div class="mini-bar" style="width:80%"></div><div class="mini-pill">Live</div></div><h3>Instant rollbacks</h3><p>Every deploy stays on file, so promoting an earlier version is a single click.</p></article>
+    <article class="feature reveal"><div class="feature-visual"><div style="font:9px monospace;line-height:2;color:#697383">API_KEY&nbsp;&nbsp;&nbsp;••••••<br>DATABASE&nbsp;&nbsp;••••••<br>STRIPE&nbsp;&nbsp;&nbsp;&nbsp;••••••</div></div><h3>Environment variables</h3><p>Encrypted at rest and injected at build time. Secrets never appear in logs.</p></article>
+  </div>
+</section>
+
+<section id="compare" class="dark-section compare">
+<div class="container section-pad">
+  <div class="reveal"><h2>Where Dropbin wins,<br>and where it doesn't.</h2><p class="lead">A deliberately simple hosting layer for static sites. No pretending it is something else.</p></div>
+  <div class="table-wrap reveal">
+    <table>
+      <thead><tr><th></th><th>Dropbin</th><th>GitHub Pages</th><th>Vercel Hobby</th></tr></thead>
+      <tbody>
+        <tr><td>Free hosting</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td>Automatic HTTPS</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td>Deploys on git push</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td>One-click rollback</td><td class="yes">✓</td><td class="no">×</td><td class="no">×</td></tr>
+        <tr><td>No credit card</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td>No cold starts</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+</section>
+
+<section class="cta">
+<div class="container reveal"><div class="section-label">Ready when you are</div><h2>Start deploying.</h2><p>Free while in beta. No credit card. No lock-in.</p><a class="primary" href="#">⌁&nbsp; Continue with GitHub</a></div>
+</section>
+</main>
+
+<footer class="footer"><div class="container footer-inner"><div><span class="brand-mark" style="display:inline-grid;vertical-align:middle;margin-right:7px"></span> Dropbin&nbsp; · &nbsp;© 2026 Dropbin</div><div>Illustrations by Dropbin Studio</div></div></footer>
+
+<script>
+const glow=document.getElementById('glow');
+window.addEventListener('pointermove',e=>{glow.style.left=e.clientX+'px';glow.style.top=e.clientY+'px'});
+const obs=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('show')}),{threshold:.12});
+document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
+document.querySelectorAll('.step,.feature').forEach(card=>{
+ card.addEventListener('pointermove',e=>{
+   const r=card.getBoundingClientRect(), x=(e.clientX-r.left)/r.width-.5, y=(e.clientY-r.top)/r.height-.5;
+   card.style.transform=`perspective(700px) rotateX(${y*-2}deg) rotateY(${x*2}deg) translateY(-2px)`;
+ });
+ card.addEventListener('pointerleave',()=>card.style.transform='');
+});
+</script>
+</body>
+</html>

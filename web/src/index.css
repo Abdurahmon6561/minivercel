@@ -106,6 +106,29 @@ button:not(:disabled),
   --animate-toast-out: toast-out 120ms ease-in forwards;
 }
 
+/* ---------------------------------------------------------------------------
+   Landing hero float.
+
+   The two status chips on the hero's deploy illustration drift gently rather
+   than sitting dead still, which is what makes them read as "live" state
+   instead of a static screenshot. Same reduced-motion handling as everything
+   else on the page: the block below already clamps every animation-duration
+   to 0.01ms, so this needs no separate opt-out.
+   --------------------------------------------------------------------------- */
+@keyframes float-chip {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+@theme {
+  --animate-float: float-chip 5s ease-in-out infinite;
+}
+
 /* Focus that is visible without being loud. Keyboard users need this, and the
    browser default is not reliable on either of our surface colours. */
 :focus-visible {
