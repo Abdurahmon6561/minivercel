@@ -4,7 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, Check, CheckCircle2, Globe2, History, Minus, Upload, X } from "lucide-react";
 
 import { useAuth } from "../auth/AuthProvider";
-import { DeployOrbitIllustration } from "../components/landing/DeployOrbitIllustration";
+import { DeploySourcesIllustration } from "../components/landing/DeploySourcesIllustration";
 import {
   CommitStripGraphic,
   EnvKeysGraphic,
@@ -14,7 +14,6 @@ import {
 import { Reveal } from "../components/landing/Reveal";
 import { SitePreview } from "../components/landing/SitePreview";
 import { Button } from "../components/ui/button";
-import { GithubMark } from "../components/ui/github-mark";
 import { ThemeToggle } from "../components/ui/theme-toggle";
 import { Wordmark } from "../components/ui/wordmark";
 
@@ -57,10 +56,17 @@ function DeletedNotice() {
  * tokens.css. They are not on the button, the pill or the badge; those stay
  * indigo, cool and semantic.
  *
- * The illustration is a deploy happening - a code window orbited by the two
- * cool accents, reporting a Ready state - rather than a generic stock drawing,
- * so it reads as the product on first look instead of as decoration. See
- * DeployOrbitIllustration for why it is built from tokens, not an SVG import.
+ * The illustration is a deploy happening - a zip and a repo both flowing into
+ * one live site with a Ready state - rather than a generic stock drawing, so
+ * it reads as this product's own shape on first look instead of as
+ * decoration that could belong to any dev tool. See DeploySourcesIllustration
+ * for why it is built from tokens, not an SVG import.
+ *
+ * The button reads "Get started", not "Continue with GitHub": /login now
+ * offers a plain email sign-up ahead of GitHub, and a button that promised
+ * GitHub before the visitor had even chosen how to sign up was quietly
+ * closing off the option this hero's own sentence advertises - a zip needs
+ * no GitHub account at all.
  */
 function Hero() {
   const { session, loading } = useAuth();
@@ -101,10 +107,10 @@ function Hero() {
               <Button
                 variant="primary"
                 size="lg"
-                icon={<GithubMark className="size-4" />}
+                icon={<ArrowRight />}
                 className="hover:-translate-y-0.5"
               >
-                Continue with GitHub
+                Get started
               </Button>
             </Link>
             <a href="#how-it-works">
@@ -137,7 +143,7 @@ function Hero() {
         </Reveal>
 
         <Reveal delay={150} className="relative lg:pl-4">
-          <DeployOrbitIllustration className="lg:max-w-none" />
+          <DeploySourcesIllustration className="lg:max-w-none" />
         </Reveal>
       </div>
     </section>
@@ -503,9 +509,11 @@ function CallToAction() {
         </h2>
 
         <div className="mt-9 flex justify-center">
-          {/* Offering GitHub sign-in to someone already signed in is a dead
-              end, so the button changes rather than the page pretending not to
-              know who is reading it. */}
+          {/* Offering to sign in to someone already signed in is a dead end,
+              so the button changes rather than the page pretending not to
+              know who is reading it. Same "Get started" as the hero, for the
+              same reason: /login, not GitHub specifically, is what this
+              button leads to. */}
           {!loading &&
             (session ? (
               <Link to="/projects">
@@ -515,8 +523,8 @@ function CallToAction() {
               </Link>
             ) : (
               <Link to="/login">
-                <Button variant="primary" size="lg" icon={<GithubMark className="size-4" />}>
-                  Continue with GitHub
+                <Button variant="primary" size="lg" icon={<ArrowRight />}>
+                  Get started
                 </Button>
               </Link>
             ))}
@@ -538,8 +546,8 @@ export function Landing() {
   return (
     <div className="min-h-screen bg-bg">
       {/* Fixed to the top of the viewport rather than scrolling away, so
-          "Continue with GitHub" and the theme toggle are always one click
-          away no matter how far down the page you are.
+          "Sign in" and the theme toggle are always one click away no matter
+          how far down the page you are.
 
           A floating rounded bar with visible margin either side, not an
           edge-to-edge strip - the outer div carries the sticky positioning

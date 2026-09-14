@@ -17,6 +17,22 @@ interface AuthValue {
   session: Session | null;
   loading: boolean;
   signIn: () => Promise<void>;
+  /**
+   * The non-GitHub way in: a magic link, so an account exists (and a quota,
+   * and a place to upload a zip) without ever authorising GitHub. GitHub stays
+   * optional, needed only by the "Import from GitHub" tab on the new-project
+   * page - not by having an account at all.
+   */
+  signInWithEmail: (email: string) => Promise<{ error: string | null }>;
+  /**
+   * Adds a GitHub identity to the CURRENT session rather than starting a new
+   * one, for someone who signed up by email and now wants to import a repo.
+   * `linkIdentity` redirects the same way `signInWithOAuth` does and lands
+   * back here still signed in as the same user; the returning auth event
+   * carries a fresh `provider_token`, which the capture effect below already
+   * knows how to store.
+   */
+  connectGithub: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   error: string | null;
 }
@@ -95,13 +111,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (cause) setError(cause.message);
   }, []);
 
+  const signInWithEmail = useCallback(async (email: string) => {
+    setError(null);
+    // `shouldCreateUser` defaults to true: an email with no existing account
+    // gets one created on the spot, which is the point - "just create the
+    // account" with nothing but an email address.
+    const { error: cause } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: dashboardOrigin() },
+    });
+    const message = cause?.message ?? null;
+    if (message) setError(message);
+    return { error: message };
+  }, []);
+
+  const connectGithub = useCallback(async () => {
+    setError(null);
+    const { error: cause } = await supabase.auth.linkIdentity({
+      provider: "github",
+      options: { scopes: githubScopes, redirectTo: dashboardOrigin() },
+    });
+    const message = cause?.message ?? null;
+    if (message) setError(message);
+    return { error: message };
+  }, []);
+
   const signOut = useCallback(async () => {
     postedToken.current = null;
     await supabase.auth.signOut();
   }, []);
 
   return (
-    <AuthContext.Provider value={{ session, loading, signIn, signOut, error }}>
+    <AuthContext.Provider
+      value={{ session, loading, signIn, signInWithEmail, connectGithub, signOut, error }}
+    >
       {children}
     </AuthContext.Provider>
   );

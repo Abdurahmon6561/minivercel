@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { useAuth } from "../auth/AuthProvider";
 import { ErrorBanner, Mono, Spinner } from "../components/Bits";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
+import { GithubMark } from "../components/ui/github-mark";
 import { api, type GithubRepo, type Me } from "../lib/api";
 import { timeAgo } from "../lib/format";
 
@@ -16,6 +18,8 @@ import { timeAgo } from "../lib/format";
  */
 export function ImportRepo({ me, onImported }: { me: Me | null; onImported: () => void }) {
   const navigate = useNavigate();
+  const { connectGithub } = useAuth();
+  const [connecting, setConnecting] = useState(false);
   const [repos, setRepos] = useState<GithubRepo[] | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [manual, setManual] = useState("");
@@ -65,11 +69,33 @@ export function ImportRepo({ me, onImported }: { me: Me | null; onImported: () =
   if (!connected) {
     return (
       <Card className="px-6 py-12 text-center">
-        <p className="text-base font-semibold text-text">Connect GitHub to continue</p>
-        <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-muted">
-          Sign out and sign in again to authorise GitHub. The token is what lets
-          us read the repository and register the push webhook.
+        <div className="mx-auto grid size-11 place-items-center rounded-full bg-surface-sunken text-muted">
+          <GithubMark className="size-5" aria-hidden="true" />
+        </div>
+        <p className="mt-4 text-base font-semibold text-text">Connect GitHub to continue</p>
+        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">
+          Your account does not need GitHub, but importing a repository does - the
+          token is what lets us read it and register the push webhook.
         </p>
+        {error && (
+          <div className="mx-auto mt-4 max-w-sm">
+            <ErrorBanner message={error} onDismiss={() => setError(null)} />
+          </div>
+        )}
+        <Button
+          variant="primary"
+          className="mt-5"
+          icon={<GithubMark className="size-4" />}
+          disabled={connecting}
+          onClick={async () => {
+            setConnecting(true);
+            const { error: cause } = await connectGithub();
+            setConnecting(false);
+            if (cause) setError(cause);
+          }}
+        >
+          {connecting ? "Connecting…" : "Connect GitHub"}
+        </Button>
       </Card>
     );
   }

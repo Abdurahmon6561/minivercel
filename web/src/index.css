@@ -129,6 +129,32 @@ button:not(:disabled),
   --animate-float: float-chip 5s ease-in-out infinite;
 }
 
+/* ---------------------------------------------------------------------------
+   Hero deploy-flow dot.
+
+   A small dot travelling down the line from "zip or repo" to "live site" -
+   the literal motion of a deploy happening, and the "in seconds" of the
+   headline made visible rather than stated. Plain transform + opacity, so the
+   reduced-motion block above (it targets every element, inline styles
+   included, since `!important` there beats a non-important inline
+   animation-duration) clamps it the same way as `float-chip` with no separate
+   opt-out needed here.
+   --------------------------------------------------------------------------- */
+@keyframes flow-dot {
+  0% {
+    transform: translateY(-2px);
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(28px);
+    opacity: 0;
+  }
+}
+
 /* Focus that is visible without being loud. Keyboard users need this, and the
    browser default is not reliable on either of our surface colours. */
 :focus-visible {
