@@ -96,6 +96,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session);
       setLoading(false);
       void captureProviderToken(data.session);
+
+      // `getSession` only reads the cached token out of localStorage - it
+      // never asks Supabase whether the user behind it still exists.
+      // Deleting a user does not revoke tokens already issued to them, so a
+      // deleted user's browser keeps looking signed in, on every reload,
+      // until that token's own expiry (up to an hour) catches up with
+      // reality. `getUser` is the one call that actually hits the Auth
+      // server; an account deleted from the dashboard fails it immediately,
+      // and signing out here is what sends this tab back to /login on its
+      // very next load instead of silently keeping a dead session alive.
+      if (data.session) {
+        supabase.auth.getUser().then(({ error: cause }) => {
+          if (active && cause) void supabase.auth.signOut();
+        });
+      }
     });
 
     const { data: subscription } = supabase.auth.onAuthStateChange(
