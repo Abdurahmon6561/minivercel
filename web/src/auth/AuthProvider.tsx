@@ -88,6 +88,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // `getSession` only reads the cached token out of localStorage - it never
+  // asks Supabase whether the user behind it still exists. Deleting a user
+  // does not revoke tokens already issued to them, so a deleted user's
+  // browser keeps looking signed in indefinitely, for as long as the tab
+  // stays open, unless something actually re-checks. `getUser` is the one
+  // call that hits the Auth server for real; an account deleted from the
+  // dashboard fails it immediately.
+  const verifySession = useCallback(async () => {
+    const { error: cause } = await supabase.auth.getUser();
+    if (cause) await supabase.auth.signOut();
+  }, []);
+
   useEffect(() => {
     let active = true;
 
@@ -96,21 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session);
       setLoading(false);
       void captureProviderToken(data.session);
-
-      // `getSession` only reads the cached token out of localStorage - it
-      // never asks Supabase whether the user behind it still exists.
-      // Deleting a user does not revoke tokens already issued to them, so a
-      // deleted user's browser keeps looking signed in, on every reload,
-      // until that token's own expiry (up to an hour) catches up with
-      // reality. `getUser` is the one call that actually hits the Auth
-      // server; an account deleted from the dashboard fails it immediately,
-      // and signing out here is what sends this tab back to /login on its
-      // very next load instead of silently keeping a dead session alive.
-      if (data.session) {
-        supabase.auth.getUser().then(({ error: cause }) => {
-          if (active && cause) void supabase.auth.signOut();
-        });
-      }
+      if (data.session) void verifySession();
     });
 
     const { data: subscription } = supabase.auth.onAuthStateChange(
@@ -121,11 +119,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     );
 
+    // Two triggers, not a reload, for someone who keeps a tab open across a
+    // deletion and never touches it: a fixed interval catches the "just sat
+    // there" case, and re-checking the moment the tab regains focus catches
+    // the far more common "switched away and back" case immediately instead
+    // of waiting out the rest of the interval.
+    const interval = window.setInterval(() => void verifySession(), 30_000);
+    function onFocus() {
+      void verifySession();
+    }
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+
     return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
       active = false;
       subscription.subscription.unsubscribe();
     };
-  }, [captureProviderToken]);
+  }, [captureProviderToken, verifySession]);
 
   const signIn = useCallback(async () => {
     setError(null);

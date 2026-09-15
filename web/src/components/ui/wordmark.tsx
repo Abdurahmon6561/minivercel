@@ -69,7 +69,12 @@ export function Wordmark({
 }) {
   return (
     <span className={cn("inline-flex items-center", size === "lg" ? "gap-2.5" : "gap-2", className)}>
-      <LogoMark className={size === "lg" ? "size-7" : "size-5"} />
+      {/* `block`: an inline `<svg>` keeps a few pixels of baseline-alignment
+          space by default, which is what nudged the icon off-line from the
+          text next to it even inside an `items-center` flex row. Block
+          removes that inline-box quirk entirely, so centring is purely
+          height-based. */}
+      <LogoMark className={cn("block", size === "lg" ? "size-7" : "size-5")} />
       <span
         className={cn(
           "font-semibold tracking-tight text-text",
