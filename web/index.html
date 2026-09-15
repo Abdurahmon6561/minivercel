@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <title>Dropbin</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>▲</text></svg>" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -15,22 +15,23 @@
     />
 
     <script>
-      // Applied before first paint, so a dark-theme user never sees a white
-      // flash while the bundle loads. Duplicates the logic in
+      // Applied before first paint, so a dark-theme user never sees a light
+      // flash while the bundle loads (or vice versa). Duplicates the logic in
       // src/lib/theme.ts on purpose: this runs inline, and inline cannot
       // import. Keep the storage key in step with THEME_STORAGE_KEY there.
+      //
+      // The default is light, not the OS preference: only an explicit stored
+      // "dark" turns dark mode on. A first visit, a cleared preference, or a
+      // browser that blocks storage all land on light.
       (function () {
+        var theme = "light";
         try {
-          var stored = localStorage.getItem("minivercel-theme");
-          if (stored === "light" || stored === "dark") {
-            document.documentElement.setAttribute("data-theme", stored);
-            document.documentElement.style.colorScheme = stored;
-          }
-          // No attribute for "system" or for a first visit: the
-          // prefers-color-scheme block in tokens.css decides.
+          if (localStorage.getItem("minivercel-theme") === "dark") theme = "dark";
         } catch (e) {
-          /* site data blocked - fall through to the OS preference */
+          /* site data blocked - fall through to light */
         }
+        document.documentElement.setAttribute("data-theme", theme);
+        document.documentElement.style.colorScheme = theme;
       })();
     </script>
   </head>

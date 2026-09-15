@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, Check, CheckCircle2, Globe2, History, Minus, Upload, X } from "lucide-react";
 
@@ -16,6 +16,41 @@ import { SitePreview } from "../components/landing/SitePreview";
 import { Button } from "../components/ui/button";
 import { ThemeToggle } from "../components/ui/theme-toggle";
 import { Wordmark } from "../components/ui/wordmark";
+import { cn } from "../lib/cn";
+import { dashboardOrigin } from "../lib/host";
+
+/**
+ * Whether the page has scrolled past the hero. The header is transparent -
+ * no border, no shadow, no fill - while it sits directly on the hero, and
+ * only becomes the floating bordered bar once there is page content behind
+ * it for that chrome to separate it from.
+ */
+function useScrolled(threshold = 8): boolean {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    function onScroll() {
+      setScrolled(window.scrollY > threshold);
+    }
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [threshold]);
+
+  return scrolled;
+}
+
+/**
+ * The landing is served from the apex; the dashboard, /login and /register
+ * live on the `app.` subdomain. A router `<Link>` cannot cross that boundary
+ * - it would only ever change the path on whichever host the landing happens
+ * to be running on - so every link into the dashboard is a real anchor to
+ * this instead. On localhost, where there is no `app.` subdomain,
+ * `dashboardOrigin()` resolves to the same origin the landing is already on.
+ */
+function dashboardHref(path: string): string {
+  return `${dashboardOrigin()}${path}`;
+}
 
 
 /**
@@ -100,7 +135,7 @@ function Hero() {
           </p>
 
           <div className="mt-9 flex flex-wrap items-center gap-3">
-            <Link to="/login">
+            <a href={dashboardHref("/login")}>
               {/* The lift-on-hover is new: it marks this specific button as the
                   one action this whole page exists for, which is also why it
                   is not on the secondary button beside it. */}
@@ -112,7 +147,7 @@ function Hero() {
               >
                 Get started
               </Button>
-            </Link>
+            </a>
             <a href="#how-it-works">
               <Button variant="ghost" size="lg" icon={<ArrowRight />}>
                 See how it works
@@ -516,17 +551,17 @@ function CallToAction() {
               button leads to. */}
           {!loading &&
             (session ? (
-              <Link to="/projects">
+              <a href={dashboardHref("/projects")}>
                 <Button variant="primary" size="lg" icon={<ArrowRight />}>
                   Open your dashboard
                 </Button>
-              </Link>
+              </a>
             ) : (
-              <Link to="/login">
+              <a href={dashboardHref("/login")}>
                 <Button variant="primary" size="lg" icon={<ArrowRight />}>
                   Get started
                 </Button>
-              </Link>
+              </a>
             ))}
         </div>
 
@@ -542,6 +577,7 @@ export function Landing() {
   const { session, loading } = useAuth();
   const [params] = useSearchParams();
   const deleted = params.get("deleted") !== null;
+  const scrolled = useScrolled();
 
   return (
     <div className="min-h-screen bg-bg">
@@ -569,11 +605,29 @@ export function Landing() {
           relying on a wrapper-level `overflow-hidden` - that wrapper rule
           would otherwise make this element's nearest ancestor a clipping
           container, which silently breaks `position: sticky` in every
-          browser regardless of whether anything actually overflows it. */}
+          browser regardless of whether anything actually overflows it.
+
+          The border, shadow and blurred fill only apply once `scrolled` is
+          true. Sitting directly on the hero at the very top of the page,
+          none of them have anything to do - the header is not separating
+          itself from page content yet, since there is none behind it - so
+          drawing them there just adds visual noise the hero does not need.
+          `border-transparent` rather than no border at all keeps the box's
+          size identical in both states, so this never causes a layout
+          shift. */}
       <div className="sticky top-0 z-40 px-3 pt-3 sm:px-6 sm:pt-4">
-        <header className="mx-auto max-w-7xl rounded-full border border-border bg-surface/95 shadow-lg backdrop-blur-md">
+        <header
+          className={cn(
+            "mx-auto max-w-7xl rounded-full border transition-[background-color,border-color,box-shadow] duration-200",
+            scrolled
+              ? "border-border bg-surface/95 shadow-lg backdrop-blur-md"
+              : "border-transparent bg-transparent shadow-none",
+          )}
+        >
           <div className="flex items-center px-6 py-3.5 sm:px-8">
-            <Wordmark />
+            <Link to="/" aria-label="Dropbin home">
+              <Wordmark />
+            </Link>
             <nav
               className="ml-10 hidden items-center gap-6 text-sm text-muted md:flex"
               aria-label="Marketing navigation"
@@ -589,17 +643,17 @@ export function Landing() {
               <ThemeToggle />
               {!loading &&
                 (session ? (
-                  <Link to="/projects">
+                  <a href={dashboardHref("/projects")}>
                     <Button variant="secondary" size="sm">
                       Open dashboard
                     </Button>
-                  </Link>
+                  </a>
                 ) : (
-                  <Link to="/login">
+                  <a href={dashboardHref("/login")}>
                     <Button variant="secondary" size="sm">
                       Sign in
                     </Button>
-                  </Link>
+                  </a>
                 ))}
             </div>
           </div>

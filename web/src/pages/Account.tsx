@@ -20,6 +20,7 @@ import {
 } from "../components/ui/dialog";
 import { GithubMark } from "../components/ui/github-mark";
 import { Skeleton } from "../components/ui/skeleton";
+import { ThemeToggle } from "../components/ui/theme-toggle";
 import { useToast } from "../components/ui/toast";
 import { api, type Me } from "../lib/api";
 import { exactTime, formatBytes, timeAgo } from "../lib/format";
@@ -308,6 +309,16 @@ export function Account({ me, onChanged }: { me: Me | null; onChanged: () => voi
                 <Skeleton className="mt-4 h-4 w-3/4" />
               </>
             )}
+          </Card>
+        </Section>
+
+        {/* -- Appearance ----------------------------------------------------- */}
+        <Section title="Appearance">
+          <Card className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+            <p className="min-w-0 flex-1 text-sm text-muted">
+              Choose how Dropbin looks on this device.
+            </p>
+            <ThemeToggle />
           </Card>
         </Section>
 

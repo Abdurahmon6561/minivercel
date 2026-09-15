@@ -49,6 +49,22 @@ export function dashboardOrigin(): string {
 }
 
 /**
+ * The mirror image of `dashboardOrigin()`: where the marketing site is, from
+ * wherever this code is currently running. Used by the logo on /login and
+ * /register, which - unlike the rest of the dashboard - should leave the app
+ * entirely rather than bounce back into it.
+ *
+ * Localhost has no `app.` subdomain, so the landing lives at `/` on the same
+ * origin there; everywhere else, strip the `app.` prefix to get the apex.
+ */
+export function landingOrigin(): string {
+  if (typeof window === "undefined") return "";
+  const { protocol, host, origin } = window.location;
+  if (!isDashboardHost()) return origin;
+  return `${protocol}//${host.slice("app.".length)}`;
+}
+
+/**
  * The domain a project's site is served from, or null when there isn't one.
  *
  * `app.getdropbin.xyz` -> `getdropbin.xyz`, so the new-project screen can show

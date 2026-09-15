@@ -42,16 +42,18 @@ export function systemTheme(): ResolvedTheme {
 }
 
 /**
- * The stored preference, or "system" when nothing is stored or the value is
- * junk. localStorage throws outright in a locked-down browser rather than
+ * The stored preference, or "light" when nothing is stored or the value is
+ * junk - the product's default is light regardless of the OS, not "follow
+ * the system", so a first-time visitor on a dark-mode OS still lands on
+ * light. localStorage throws outright in a locked-down browser rather than
  * returning null, so this can never be an unguarded read.
  */
 export function storedPreference(): ThemePreference {
   try {
     const raw = localStorage.getItem(THEME_STORAGE_KEY);
-    return isPreference(raw) ? raw : "system";
+    return isPreference(raw) ? raw : "light";
   } catch {
-    return "system";
+    return "light";
   }
 }
 

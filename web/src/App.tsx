@@ -5,7 +5,7 @@ import { useAuth } from "./auth/AuthProvider";
 import { ErrorBanner, Spinner } from "./components/Bits";
 import { Layout } from "./components/Layout";
 import { api, type Me } from "./lib/api";
-import { isDashboardHost } from "./lib/host";
+import { dashboardOrigin, isDashboardHost } from "./lib/host";
 import { ProjectChromeProvider } from "./lib/project-chrome";
 import { Account } from "./pages/Account";
 import { Landing } from "./pages/Landing";
@@ -98,6 +98,20 @@ function Dashboard() {
   }, [session]);
 
   useEffect(refreshMe, [refreshMe]);
+
+  // Everything in this component is matched by `path="*"` in App(), which - unlike
+  // Root, gated on `isDashboardHost()` below - runs on ANY host. Someone who lands
+  // on the apex at /login or /projects (a stale link, a bookmark, a CTA that used a
+  // same-host <Link>) would otherwise render and even complete sign-in there, and
+  // every further client-side navigation would then stay on the wrong host with
+  // them. `dashboardOrigin()` already resolves to the current origin on localhost
+  // and on the dashboard host itself, so this only fires on the real apex.
+  if (typeof window !== "undefined" && window.location.origin !== dashboardOrigin()) {
+    window.location.replace(
+      `${dashboardOrigin()}${window.location.pathname}${window.location.search}`,
+    );
+    return null;
+  }
 
   if (configError) return <Misconfigured message={configError} />;
 

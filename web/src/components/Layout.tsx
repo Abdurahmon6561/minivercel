@@ -15,7 +15,6 @@ import {
 import { useAuth } from "../auth/AuthProvider";
 import { Avatar } from "./ui/avatar";
 import { Button } from "./ui/button";
-import { ThemeToggle } from "./ui/theme-toggle";
 import { Wordmark } from "./ui/wordmark";
 import { cn } from "../lib/cn";
 import { useProjectChrome } from "../lib/project-chrome";
@@ -152,12 +151,9 @@ function ProjectNav({ slug }: { slug: string }) {
 }
 
 /**
- * Theme and identity.
- *
- * The avatar is the way to /account, which is where signing out now lives.
- * The Sign out button that stood here between the dropdown being removed and
- * /account existing has served its purpose and is gone: two ways to sign out,
- * one of them a bare icon in a corner, is worse than one clearly labelled.
+ * Identity, and the way to /account - which is where both signing out and the
+ * theme switcher now live. Two ways to reach either, one of them a bare
+ * control in a corner, is worse than one clearly labelled settings page.
  */
 function SidebarFooter({
   me,
@@ -176,33 +172,27 @@ function SidebarFooter({
 
   if (layout === "inline") {
     return (
-      <div className="flex items-center gap-2">
-        <Link
-          to="/account"
-          aria-label={email ? `Account: ${email}` : "Account"}
-          className="rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          <Avatar email={email} />
-        </Link>
-        <ThemeToggle />
-      </div>
+      <Link
+        to="/account"
+        aria-label={email ? `Account: ${email}` : "Account"}
+        className="rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        <Avatar email={email} />
+      </Link>
     );
   }
 
   return (
-    <div className="space-y-2">
-      <Link
-        to="/account"
-        className="flex items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        aria-label={email ? `Account: ${email}` : "Account"}
-      >
-        <Avatar email={email} />
-        <span className="min-w-0 truncate text-[13px] text-muted" title={email ?? undefined}>
-          {email ?? "Signed in"}
-        </span>
-      </Link>
-      <ThemeToggle />
-    </div>
+    <Link
+      to="/account"
+      className="flex items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      aria-label={email ? `Account: ${email}` : "Account"}
+    >
+      <Avatar email={email} />
+      <span className="min-w-0 truncate text-[13px] text-muted" title={email ?? undefined}>
+        {email ?? "Signed in"}
+      </span>
+    </Link>
   );
 }
 
