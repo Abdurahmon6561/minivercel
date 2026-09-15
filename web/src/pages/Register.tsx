@@ -11,7 +11,11 @@ import { ThemeToggle } from "../components/ui/theme-toggle";
 import { Wordmark } from "../components/ui/wordmark";
 import { landingOrigin } from "../lib/host";
 
-const CODE_LENGTH = 6;
+// Supabase's default email OTP is 6 digits, but this project's "Confirm
+// signup" template is generating 8 - confirmed from an actual received code
+// ("95325693"). Matches whatever length Supabase Auth is configured to send;
+// if that setting changes, this is the one place to update.
+const CODE_LENGTH = 8;
 
 /**
  * Step two of registration: the code from the confirmation email. Its own
