@@ -18,12 +18,27 @@ interface AuthValue {
   loading: boolean;
   signIn: () => Promise<void>;
   /**
-   * The non-GitHub way in: a magic link, so an account exists (and a quota,
-   * and a place to upload a zip) without ever authorising GitHub. GitHub stays
-   * optional, needed only by the "Import from GitHub" tab on the new-project
-   * page - not by having an account at all.
+   * The non-GitHub way to get an account: email, password, and a confirmation
+   * code, so an account exists (and a quota, and a place to upload a zip)
+   * without ever authorising GitHub. GitHub stays optional, needed only by the
+   * "Import from GitHub" tab on the new-project page - not by having an
+   * account at all.
+   *
+   * Supabase sends the code because the "Confirm signup" email template is
+   * configured (in the Supabase dashboard, not here) to include `{{ .Token }}`
+   * instead of `{{ .ConfirmationURL }}` - otherwise it mails a link to click
+   * instead of a code to type.
    */
-  signInWithEmail: (email: string) => Promise<{ error: string | null }>;
+  signUpWithPassword: (
+    name: string,
+    email: string,
+    password: string,
+  ) => Promise<{ error: string | null }>;
+  /** Redeems the code from the signup email and starts the session. */
+  verifySignupCode: (email: string, code: string) => Promise<{ error: string | null }>;
+  /** Re-sends the signup code, for when the first one expired or got lost. */
+  resendSignupCode: (email: string) => Promise<{ error: string | null }>;
+  signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   /**
    * Adds a GitHub identity to the CURRENT session rather than starting a new
    * one, for someone who signed up by email and now wants to import a repo.
@@ -111,15 +126,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (cause) setError(cause.message);
   }, []);
 
-  const signInWithEmail = useCallback(async (email: string) => {
+  const signUpWithPassword = useCallback(async (name: string, email: string, password: string) => {
     setError(null);
-    // `shouldCreateUser` defaults to true: an email with no existing account
-    // gets one created on the spot, which is the point - "just create the
-    // account" with nothing but an email address.
-    const { error: cause } = await supabase.auth.signInWithOtp({
+    const { error: cause } = await supabase.auth.signUp({
       email,
-      options: { emailRedirectTo: dashboardOrigin() },
+      password,
+      options: { data: { name } },
     });
+    const message = cause?.message ?? null;
+    if (message) setError(message);
+    return { error: message };
+  }, []);
+
+  const verifySignupCode = useCallback(async (email: string, code: string) => {
+    setError(null);
+    // `verifyOtp` starts the session itself on success - the `onAuthStateChange`
+    // listener above picks it up, nothing further to do here.
+    const { error: cause } = await supabase.auth.verifyOtp({
+      email,
+      token: code,
+      type: "signup",
+    });
+    const message = cause?.message ?? null;
+    if (message) setError(message);
+    return { error: message };
+  }, []);
+
+  const resendSignupCode = useCallback(async (email: string) => {
+    setError(null);
+    const { error: cause } = await supabase.auth.resend({ type: "signup", email });
+    const message = cause?.message ?? null;
+    if (message) setError(message);
+    return { error: message };
+  }, []);
+
+  const signInWithPassword = useCallback(async (email: string, password: string) => {
+    setError(null);
+    const { error: cause } = await supabase.auth.signInWithPassword({ email, password });
     const message = cause?.message ?? null;
     if (message) setError(message);
     return { error: message };
@@ -143,7 +186,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, loading, signIn, signInWithEmail, connectGithub, signOut, error }}
+      value={{
+        session,
+        loading,
+        signIn,
+        signUpWithPassword,
+        verifySignupCode,
+        resendSignupCode,
+        signInWithPassword,
+        connectGithub,
+        signOut,
+        error,
+      }}
     >
       {children}
     </AuthContext.Provider>

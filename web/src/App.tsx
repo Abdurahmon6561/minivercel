@@ -13,6 +13,7 @@ import { Login } from "./pages/Login";
 import { NewProject } from "./pages/NewProject";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import { Projects } from "./pages/Projects";
+import { Register } from "./pages/Register";
 import { configError } from "./lib/supabase";
 
 function Misconfigured({ message }: { message: string }) {
@@ -112,6 +113,7 @@ function Dashboard() {
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
@@ -137,6 +139,7 @@ function Dashboard() {
         <Route path="/p/:slug" element={<LegacyProjectRedirect />} />
         <Route path="/new" element={<LegacyNewRedirect />} />
         <Route path="/login" element={<Navigate to="/projects" replace />} />
+        <Route path="/register" element={<Navigate to="/projects" replace />} />
         <Route
           path="*"
           element={

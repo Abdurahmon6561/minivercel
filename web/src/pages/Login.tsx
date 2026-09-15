@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { AlertCircle, ArrowRight, Mail } from "lucide-react";
+import { AlertCircle, ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthProvider";
 import { Button } from "../components/ui/button";
@@ -7,33 +8,6 @@ import { GithubMark } from "../components/ui/github-mark";
 import { Input } from "../components/ui/input";
 import { ThemeToggle } from "../components/ui/theme-toggle";
 import { Wordmark } from "../components/ui/wordmark";
-
-/**
- * Sent, so the card can show "check your email" instead of quietly doing
- * nothing - a magic link has no loading state to watch, only a mailbox to go
- * check, and the UI needs to say so.
- */
-function EmailSent({ email, onBack }: { email: string; onBack: () => void }) {
-  return (
-    <div className="text-center">
-      <div className="mx-auto grid size-12 place-items-center rounded-full bg-accent-subtle text-accent-vivid">
-        <Mail className="size-5" aria-hidden="true" />
-      </div>
-      <h2 className="mt-4 text-lg font-semibold text-text">Check your email</h2>
-      <p className="mt-2 text-sm leading-relaxed text-muted">
-        We sent a sign-in link to <span className="font-medium text-text">{email}</span>. Open
-        it on this device to continue - no password to set or remember.
-      </p>
-      <button
-        type="button"
-        onClick={onBack}
-        className="mt-6 text-sm font-medium text-primary hover:underline"
-      >
-        Use a different email
-      </button>
-    </div>
-  );
-}
 
 /**
  * The only unauthenticated page inside the dashboard.
@@ -45,23 +19,22 @@ function EmailSent({ email, onBack }: { email: string; onBack: () => void }) {
  * Two ways in, not one: GitHub used to be the only account there was, which
  * meant creating a Dropbin account and authorising a GitHub app were the same
  * click. They are not the same decision - someone who only wants to upload a
- * zip has no reason to grant repository access first - so email is now a
- * first-class way to get an account, and GitHub is something you connect
- * later, from the new-project page, only when you actually want to import a
- * repo.
+ * zip has no reason to grant repository access first - so email+password is
+ * now a first-class way to get an account (via /register), and GitHub is
+ * something you connect later, from the new-project page, only when you
+ * actually want to import a repo.
  */
 export function Login() {
-  const { signIn, signInWithEmail, error } = useAuth();
+  const { signIn, signInWithPassword, error } = useAuth();
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
+  const [password, setPassword] = useState("");
+  const [signing, setSigning] = useState(false);
 
-  async function submitEmail() {
-    if (!email.trim() || sending) return;
-    setSending(true);
-    const { error: cause } = await signInWithEmail(email.trim());
-    setSending(false);
-    if (!cause) setSent(email.trim());
+  async function submit() {
+    if (!email.trim() || !password || signing) return;
+    setSigning(true);
+    await signInWithPassword(email.trim(), password);
+    setSigning(false);
   }
 
   return (
@@ -85,15 +58,13 @@ export function Login() {
 
             <p className="text-xs font-semibold tracking-[0.13em] text-accent uppercase">Get started</p>
             <h1 className="mt-3 text-2xl leading-snug font-semibold tracking-[-0.03em] text-balance text-text">
-              {sent ? "One click and you're in" : "Sign in to deploy your static sites"}
+              Sign in to deploy your static sites
             </h1>
-            {!sent && (
-              <p className="mt-2 text-sm leading-relaxed text-muted">
-                Upload a zip in seconds. Connect GitHub later, only if you want to import a repo.
-              </p>
-            )}
+            <p className="mt-2 text-sm leading-relaxed text-muted">
+              Upload a zip in seconds. Connect GitHub later, only if you want to import a repo.
+            </p>
 
-            {error && !sent && (
+            {error && (
               <div
                 role="alert"
                 className="mt-6 flex items-start gap-2.5 rounded-md border border-destructive/35 bg-destructive-subtle px-3.5 py-3 text-[13px] leading-relaxed text-destructive-subtle-fg"
@@ -103,54 +74,63 @@ export function Login() {
               </div>
             )}
 
-            {sent ? (
-              <div className="mt-7">
-                <EmailSent email={sent} onBack={() => setSent(null)} />
-              </div>
-            ) : (
-              <>
-                <label className="mt-7 block text-left">
-                  <span className="mb-1.5 block text-[13px] text-muted">Email address</span>
-                  <Input
-                    type="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="you@example.com"
-                    autoComplete="email"
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") void submitEmail();
-                    }}
-                  />
-                </label>
-                <Button
-                  variant="primary"
-                  size="lg"
-                  block
-                  className="mt-3"
-                  icon={<ArrowRight />}
-                  disabled={!email.trim() || sending}
-                  onClick={() => void submitEmail()}
-                >
-                  {sending ? "Sending link…" : "Continue with email"}
-                </Button>
+            <label className="mt-7 block text-left">
+              <span className="mb-1.5 block text-[13px] text-muted">Email address</span>
+              <Input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+                autoComplete="email"
+              />
+            </label>
+            <label className="mt-4 block text-left">
+              <span className="mb-1.5 block text-[13px] text-muted">Password</span>
+              <Input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void submit();
+                }}
+              />
+            </label>
+            <Button
+              variant="primary"
+              size="lg"
+              block
+              className="mt-5"
+              icon={<ArrowRight />}
+              disabled={!email.trim() || !password || signing}
+              onClick={() => void submit()}
+            >
+              {signing ? "Signing in…" : "Sign in"}
+            </Button>
 
-                <div className="my-6 flex items-center gap-3 text-xs font-medium text-muted">
-                  <span className="h-px flex-1 bg-border" aria-hidden="true" />
-                  or
-                  <span className="h-px flex-1 bg-border" aria-hidden="true" />
-                </div>
+            <p className="mt-4 text-center text-sm text-muted">
+              No account yet?{" "}
+              <Link to="/register" className="font-medium text-primary hover:underline">
+                Create one
+              </Link>
+            </p>
 
-                <Button
-                  variant="secondary"
-                  size="lg"
-                  block
-                  icon={<GithubMark className="size-4" />}
-                  onClick={() => void signIn()}
-                >
-                  Continue with GitHub
-                </Button>
-              </>
-            )}
+            <div className="my-6 flex items-center gap-3 text-xs font-medium text-muted">
+              <span className="h-px flex-1 bg-border" aria-hidden="true" />
+              or
+              <span className="h-px flex-1 bg-border" aria-hidden="true" />
+            </div>
+
+            <Button
+              variant="secondary"
+              size="lg"
+              block
+              icon={<GithubMark className="size-4" />}
+              onClick={() => void signIn()}
+            >
+              Continue with GitHub
+            </Button>
           </div>
 
           {/* Outside the card: this explains what GitHub is for, and belongs
