@@ -116,7 +116,16 @@ function Hero() {
         <div className="absolute -bottom-40 -left-24 size-[30rem] rounded-full bg-primary/10 blur-[110px]" />
       </div>
 
-      <div className="mx-auto grid max-w-7xl items-center gap-14 px-6 pt-16 pb-24 sm:px-8 sm:pt-24 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:pb-32">
+      {/* `min-h-[calc(100vh-6rem)]` + `items-center`, not a large top padding:
+          padding alone pushes content down by a fixed amount regardless of
+          viewport height, which is what read as "too much gap under the
+          header" and "not centred" on a tall screen. Sizing the row to
+          roughly the remaining viewport and centring within it instead means
+          the hero sits close under the header and is actually centred in the
+          space it has, on any screen. The 6rem subtracted is an estimate of
+          the sticky header's own height (padding + bar); being a little off
+          just shifts the centring slightly rather than breaking anything. */}
+      <div className="mx-auto grid min-h-[calc(100vh-6rem)] max-w-7xl items-center gap-14 px-6 py-10 sm:px-8 sm:py-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
         <Reveal className="max-w-2xl">
           <p className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium text-muted shadow-sm">
             <span className="size-1.5 rounded-full bg-success" />
