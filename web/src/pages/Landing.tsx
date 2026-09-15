@@ -689,14 +689,6 @@ export function Landing() {
             <Wordmark />
             <span>© {new Date().getFullYear()} Dropbin</span>
           </div>
-          <a
-            className="transition-colors hover:text-text"
-            href="https://undraw.co"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Illustrations by unDraw
-          </a>
         </div>
       </footer>
     </div>
