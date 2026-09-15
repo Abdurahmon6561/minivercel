@@ -128,14 +128,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUpWithPassword = useCallback(async (name: string, email: string, password: string) => {
     setError(null);
-    const { error: cause } = await supabase.auth.signUp({
+    const { data, error: cause } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { name } },
     });
-    const message = cause?.message ?? null;
-    if (message) setError(message);
-    return { error: message };
+    if (cause) {
+      setError(cause.message);
+      return { error: cause.message };
+    }
+
+    // Supabase does not error when the email already belongs to a confirmed
+    // account - it returns a fake success instead, so a stranger cannot use
+    // signup to probe which addresses exist. The tell is `identities`: empty
+    // for an existing user, populated with the fresh "email" identity for a
+    // genuinely new one. Without this check the form would silently advance
+    // to "enter the code" for an account that will never receive one.
+    if (data.user && data.user.identities?.length === 0) {
+      const message = "That email already has an account. Sign in instead.";
+      setError(message);
+      return { error: message };
+    }
+
+    return { error: null };
   }, []);
 
   const verifySignupCode = useCallback(async (email: string, code: string) => {
