@@ -1,22 +1,21 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import { motion, useReducedMotion } from "motion/react";
+
+import { fadeUpVariants } from "../../lib/motion";
 
 /**
  * Fades and lifts its children into place the first time they cross into the
- * viewport. Landing-only: this is the page's one motion primitive, so every
- * section entrance goes through it rather than each growing its own
- * transition classes.
+ * viewport. Landing-only: this is the page's one motion primitive for a
+ * single block entering as a unit - a group of siblings that should cascade
+ * in one after another (the "How it works" steps, the feature cards, the
+ * comparison table rows) stagger via `motion.*` directly at the call site
+ * instead, since a generic wrapper here would have to break the semantics of
+ * an `<ol>`, a grid, or a `<table>` to do it.
  *
- * IntersectionObserver, never a scroll listener - `window.addEventListener
- * ("scroll", ...)` re-fires on every frame and is what actually janks a page,
- * which is why it is not used here.
- *
- * Reduced motion is a hard skip, not a shorter animation: the observer is
- * never attached and the children render visible immediately. A user who has
- * asked their OS for less motion should not spend even one frame looking at
- * hidden content while something decides whether to show it to them.
- *
- * Animates only `opacity` and `transform`, so the browser can composite it on
- * the GPU instead of laying the page out again on every tick.
+ * `whileInView` with `viewport={{ once: true }}`: Motion's own visibility
+ * observer, so no manual `IntersectionObserver` bookkeeping, and it never
+ * re-fires on scrolling back past a section - that would be distracting on a
+ * page meant to be scrolled once, not informative.
  */
 export function Reveal({
   children,
@@ -28,42 +27,17 @@ export function Reveal({
   delay?: number;
   className?: string;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setVisible(true);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true);
-          observer.disconnect();
-        }
-      },
-      // 0.15 fires once a section is legibly on screen, not on the first
-      // sliver of it crossing the bottom edge.
-      { threshold: 0.15 },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+  const reduce = useReducedMotion();
 
   return (
-    <div
-      ref={ref}
-      style={{ transitionDelay: visible ? `${delay}ms` : "0ms" }}
-      className={`transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-        visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
-      } ${className}`}
+    <motion.div
+      className={className}
+      variants={fadeUpVariants(!!reduce, 12, reduce ? 0 : delay / 1000)}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: "-80px" }}
     >
       {children}
-    </div>
+    </motion.div>
   );
 }

@@ -34,7 +34,6 @@ export function BrandPane() {
       />
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
         <div className="absolute -top-24 -right-16 size-96 rounded-full bg-warm-orange/25 blur-[100px]" />
-        <div className="absolute -bottom-32 -left-20 size-96 rounded-full bg-warm-pink/20 blur-[100px]" />
       </div>
 
       {/* Leaves the dashboard entirely, so this is a real anchor to the apex

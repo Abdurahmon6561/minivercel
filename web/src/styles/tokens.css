@@ -10,7 +10,7 @@
    TWO accents, with different jobs. Getting this wrong is what makes a
    two-colour palette look noisy:
 
-     primary (indigo/violet)  Actions. Buttons you press, the active nav item,
+     primary (blue)           Actions. Buttons you press, the active nav item,
                               links. If pressing it does something, it is
                               primary.
      accent  (cyan)           Emphasis. Feature-card icons, key metrics, the
@@ -58,22 +58,25 @@
   --text: #0f172a; /* slate-900 - 17.1:1 on --bg */
   --text-muted: #64748b; /* slate-500 -  4.6:1 on --bg, 4.8:1 on --surface */
 
-  /* Primary - indigo. Actions.
-     White on #4f46e5 is 6.3:1. The brighter indigo-500 was the first choice and
-     measured 4.46:1 - technically a pass, but close enough to the 4.5 line that
-     any later tweak to the label size or weight would quietly break it. One
-     step down buys the margin and costs nothing else. */
-  --primary: #4f46e5; /* indigo-600 */
-  --primary-hover: #4338ca; /* indigo-700 */
+  /* Primary - blue. Actions.
+     The brand colour: every primary button, active nav state and link on
+     the product runs through this one token. Blue-700, not the more usual
+     blue-600 - blue-600 is already --info's solid colour a few lines down,
+     and a brand action colour that happens to double as a status colour
+     reads as "is this button telling me something, or is it the CTA" the
+     one time they land near each other. White on #1d4ed8 is 6.7:1.
+     MEASURED: white text on --primary is 6.7:1, comfortably clears AA. */
+  --primary: #1d4ed8; /* blue-700 */
+  --primary-hover: #1e40af; /* blue-800 */
   --primary-fg: #ffffff;
-  --primary-subtle: #eef2ff; /* indigo-50  */
-  --primary-subtle-fg: #3730a3; /* indigo-800 - 8.9:1 on the subtle fill */
+  --primary-subtle: #eff6ff; /* blue-50  */
+  --primary-subtle-fg: #1e3a8a; /* blue-900 */
 
   /* Accent - cyan. Emphasis.
      Cyan-700 rather than the cyan-500 it is drawn from: #06b6d4 on white is
      2.6:1, which is unreadable as a metric and illegible as a label. This is
-     the same hue two steps down, still unmistakably cyan against the indigo,
-     and 5.4:1 on white. The dark side gets the bright value, where it works.
+     the same hue two steps down, still unmistakably cyan against the blue
+     primary, and 5.4:1 on white. The dark side gets the bright value, where it works.
      The cyan-500 itself lives on as --accent-vivid, further down, for the
      decorative fills where nothing has to be read. */
   --accent: #0e7490; /* cyan-700 */
@@ -104,33 +107,28 @@
   --info-subtle-fg: #1e40af;
 
   /* One focus ring colour everywhere, so keyboard focus is never ambiguous
-     about what it is highlighting. Cyan, so it stays visible on top of an
-     indigo primary button - a ring in the primary hue on a primary-coloured
+     about what it is highlighting. Cyan, so it stays visible on top of the
+     blue primary button - a ring in the primary hue on a primary-coloured
      button is a ring nobody can see. */
   --ring: #0891b2; /* cyan-600 */
 
-  /* Warm accents - LANDING PAGE ONLY, and decorative there.
-     The one deliberate exception to a palette that is cool end to end. A
-     marketing page has a different job from a dashboard: it has to feel
-     inviting in the first second, and indigo-on-slate is competent rather than
-     warm. They belong in gradient washes, illustration fills and a highlighted
-     word in a display headline - never on a control, a status or a label. The
-     product itself stays cool.
+  /* Warm accent - LANDING PAGE ONLY, and decorative there.
+     The one deliberate exception to a palette that is blue end to end: the
+     brand is blue primary + orange secondary, exactly two colours, and this
+     is the orange half. Belongs in gradient washes and a highlighted word in
+     a display headline - never on a control, a status or a label. The
+     product itself stays on --primary.
 
-     One step down from the orange-500/pink-500 they are drawn from, because
-     those do not survive a light background: #f97316 is 2.68:1 on --bg, which
-     fails even the 3:1 a meaningful graphic needs.
+     One step down from the orange-500 it is drawn from, because that does
+     not survive a light background: #f97316 is 2.68:1 on --bg, which fails
+     even the 3:1 a meaningful graphic needs.
 
-     MEASURED, on --bg:
-       --warm-orange  3.40:1   large text (>=24px) and graphics only
-       --warm-pink    4.39:1   large text and graphics only
-     Neither reaches AA's 4.5:1 for body copy, and neither is meant to carry
-     any. If a warm colour is ever needed for running text, orange-700 #c2410c
-     (4.95:1) and pink-700 #be185d (5.77:1) are the swaps.
+     MEASURED, on --bg: --warm-orange is 3.40:1 - large text (>=24px) and
+     graphics only, not AA's 4.5:1 for body copy. orange-700 #c2410c (4.95:1)
+     is the swap if a warm colour is ever needed for running text.
 
-     Dark needs no such care - both clear 7:1 on a near-black ground. */
+     Dark needs no such care - it clears 7:1 on a near-black ground. */
   --warm-orange: #ea580c; /* orange-600 */
-  --warm-pink: #db2777; /* pink-600   */
 
   /* Illustration ink - LANDING PAGE ONLY.
      unDraw's line art is drawn for a white page: pale devices around a
@@ -190,11 +188,15 @@
     --text: #f1f5f9; /* slate-100 - 16.7:1 on --surface */
     --text-muted: #94a3b8; /* slate-400 -  7.7:1 on --bg */
 
-    --primary: #818cf8; /* indigo-400 */
-    --primary-hover: #a5b4fc; /* indigo-300 */
-    --primary-fg: #1e1b4b; /* indigo-950 - 5.4:1 on the button */
-    --primary-subtle: #1c1b3a;
-    --primary-subtle-fg: #c7d2fe; /* indigo-200 */
+    /* blue-300, not the more usual blue-400 - blue-400 is already --info's
+       solid colour a few lines down, and the brand primary needs to read as
+       a different blue from the status one, not the same value doing two
+       jobs. MEASURED: --primary-fg on --primary is 8.15:1. */
+    --primary: #93c5fd; /* blue-300 */
+    --primary-hover: #bfdbfe; /* blue-200 */
+    --primary-fg: #172554; /* blue-950 - 8.15:1 on the button */
+    --primary-subtle: #1b2a4a;
+    --primary-subtle-fg: #dbeafe; /* blue-100 */
 
     --accent: #22d3ee; /* cyan-400 */
     --accent-hover: #67e8f9; /* cyan-300 */
@@ -220,10 +222,9 @@
     --info-subtle: #16233a;
     --info-subtle-fg: #93c5fd;
 
-    /* Brighter on a near-black ground, where the light-theme values go muddy.
-       MEASURED on --bg: orange-400 8.7:1, pink-400 7.5:1. */
+    /* Brighter on a near-black ground, where the light-theme value goes muddy.
+       MEASURED on --bg: orange-400 8.7:1. */
     --warm-orange: #fb923c; /* orange-400 */
-    --warm-pink: #f472b6; /* pink-400   */
 
     /* Solved to match the light ratios above, not eyeballed. */
     --illo-body: color-mix(in srgb, var(--text) 9.7%, var(--bg));
@@ -255,11 +256,11 @@
   --text: #f1f5f9;
   --text-muted: #94a3b8;
 
-  --primary: #818cf8;
-  --primary-hover: #a5b4fc;
-  --primary-fg: #1e1b4b;
-  --primary-subtle: #1c1b3a;
-  --primary-subtle-fg: #c7d2fe;
+  --primary: #93c5fd;
+  --primary-hover: #bfdbfe;
+  --primary-fg: #172554;
+  --primary-subtle: #1b2a4a;
+  --primary-subtle-fg: #dbeafe;
 
   --accent: #22d3ee;
   --accent-hover: #67e8f9;
@@ -286,7 +287,6 @@
   --info-subtle-fg: #93c5fd;
 
   --warm-orange: #fb923c;
-  --warm-pink: #f472b6;
 
   --illo-body: color-mix(in srgb, var(--text) 9.7%, var(--bg));
   --illo-body-2: color-mix(in srgb, var(--text) 14%, var(--bg));
@@ -366,7 +366,6 @@
   /* Landing page only, and decorative there - washes, illustration fills and
      one highlighted display word. Never a control, a status or a label. */
   --color-warm-orange: var(--warm-orange);
-  --color-warm-pink: var(--warm-pink);
 
   --color-destructive: var(--destructive);
   --color-destructive-hover: var(--destructive-hover);
@@ -400,4 +399,12 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
     monospace;
+
+  /* Display headlines only - landing page section titles and the hero. Body
+     copy, buttons and UI chrome all stay on --font-sans; mixing the display
+     face into running text is what makes a display face look like a mistake
+     instead of a choice. Falls back to --font-sans itself, not a generic
+     sans stack, so a slow/blocked font load never mismatches the rest of the
+     page's voice while it waits. */
+  --font-display: "Bricolage Grotesque", var(--font-sans);
 }

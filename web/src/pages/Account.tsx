@@ -182,13 +182,13 @@ export function Account({ me, onChanged }: { me: Me | null; onChanged: () => voi
     // app.{domain} is a redirect that sends a signed-out visitor straight to
     // /login. Going there by router would land on exactly the page this is
     // supposed to avoid, so on the dashboard host this is a real navigation
-    // to the other origin. `?deleted` survives it; a toast would not.
+    // to the other origin.
     const domain = siteDomain();
     if (isDashboardHost() && domain) {
-      window.location.assign(`${window.location.protocol}//${domain}/?deleted=1`);
+      window.location.assign(`${window.location.protocol}//${domain}/`);
       return;
     }
-    navigate("/?deleted=1");
+    navigate("/");
   }
 
   const used = me?.usage.bytes_used ?? 0;

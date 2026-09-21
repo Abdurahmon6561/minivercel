@@ -1,8 +1,10 @@
 import { forwardRef } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Loader2 } from "lucide-react";
+import { motion } from "motion/react";
 
 import { cn } from "../../lib/cn";
+import { SPRING, useCanHover } from "../../lib/motion";
 
 /**
  * The one button.
@@ -37,8 +39,11 @@ const button = cva(
     "font-medium select-none cursor-pointer",
     // 150ms is the ceiling for something that should feel instant. Only the
     // properties that actually change animate: transitioning `all` also
-    // animates layout on a width change, which reads as lag.
-    "transition-[background-color,border-color,color,box-shadow,transform] duration-150",
+    // animates layout on a width change, which reads as lag. `transform` is
+    // deliberately left out - Motion's `whileHover`/`whileTap` below own it
+    // now, and a CSS transition on a property Motion is already writing every
+    // frame fights it instead of composing with it.
+    "transition-[background-color,border-color,color,box-shadow] duration-150",
     "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
     // A disabled button must still look like a button, or the user reads the
     // screen as broken rather than as blocked - and the cursor should say
@@ -53,13 +58,13 @@ const button = cva(
   {
     variants: {
       variant: {
-        primary:
-          "bg-primary text-primary-fg shadow-sm hover:bg-primary-hover active:translate-y-px",
-        secondary:
-          "border border-border-strong bg-surface text-text shadow-sm hover:bg-surface-hover active:translate-y-px",
+        // The press-down feedback used to be a per-variant `active:translate-y-px`;
+        // it is now `whileTap` below, spring-based and identical across every
+        // variant, so it is gone from all five of these.
+        primary: "bg-primary text-primary-fg shadow-sm hover:bg-primary-hover",
+        secondary: "border border-border-strong bg-surface text-text shadow-sm hover:bg-surface-hover",
         ghost: "text-muted hover:bg-surface-hover hover:text-text",
-        destructive:
-          "bg-destructive text-destructive-fg shadow-sm hover:bg-destructive-hover active:translate-y-px",
+        destructive: "bg-destructive text-destructive-fg shadow-sm hover:bg-destructive-hover",
         subtle:
           "border border-destructive/35 text-destructive hover:border-destructive/60 hover:bg-destructive-subtle",
         link: "text-primary underline-offset-4 hover:underline",
@@ -83,8 +88,18 @@ const button = cva(
   },
 );
 
+/**
+ * `onDrag`/`onDragStart`/`onDragEnd`/`onAnimation*` are omitted because
+ * `motion.button` below redefines them for its own gesture system with a
+ * different signature than the native DOM events - spreading a native
+ * `ButtonHTMLAttributes` value into one of those props is a type error, and
+ * nothing in the app passes them to a `<Button>` today.
+ */
 export interface ButtonProps
-  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "color">,
+  extends Omit<
+      React.ButtonHTMLAttributes<HTMLButtonElement>,
+      "color" | "onDrag" | "onDragStart" | "onDragEnd" | "onAnimationStart" | "onAnimationEnd" | "onAnimationIteration"
+    >,
     VariantProps<typeof button> {
   /** Swap the leading icon for a spinner and block interaction. */
   loading?: boolean;
@@ -107,24 +122,35 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       ...props
     },
     ref,
-  ) => (
-    <button
-      ref={ref}
-      // Buttons inside a form default to `submit`, which is almost never what
-      // is wanted from a component used this widely.
-      type={type}
-      disabled={disabled || loading}
-      // The label is replaced by nothing while loading - the spinner sits where
-      // the icon was and the text stays - so `aria-busy` is what tells a screen
-      // reader anything happened.
-      aria-busy={loading || undefined}
-      className={cn(button({ variant, size, block }), className)}
-      {...props}
-    >
-      {loading ? <Loader2 className="animate-spin" aria-hidden="true" /> : icon}
-      {children}
-    </button>
-  ),
+  ) => {
+    // Gated so the hover lift never gets "stuck on" after a tap on touch -
+    // whileTap has no such problem, since a press-and-release is real
+    // information on any pointer type, so it applies unconditionally.
+    const canHover = useCanHover();
+    const inert = disabled || loading;
+
+    return (
+      <motion.button
+        ref={ref}
+        // Buttons inside a form default to `submit`, which is almost never what
+        // is wanted from a component used this widely.
+        type={type}
+        disabled={inert}
+        // The label is replaced by nothing while loading - the spinner sits where
+        // the icon was and the text stays - so `aria-busy` is what tells a screen
+        // reader anything happened.
+        aria-busy={loading || undefined}
+        className={cn(button({ variant, size, block }), className)}
+        whileHover={!inert && canHover ? { scale: 1.03, y: -1 } : undefined}
+        whileTap={!inert ? { scale: 0.97, y: 0 } : undefined}
+        transition={SPRING}
+        {...props}
+      >
+        {loading ? <Loader2 className="animate-spin" aria-hidden="true" /> : icon}
+        {children}
+      </motion.button>
+    );
+  },
 );
 
 Button.displayName = "Button";

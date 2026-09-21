@@ -77,6 +77,19 @@ button:not(:disabled),
 }
 
 /* ---------------------------------------------------------------------------
+   Custom cursor.
+
+   CustomCursor.tsx toggles this class on <html> only once it has confirmed
+   a real mouse is present (useCanHover) - so this rule, and the `!important`
+   it needs to beat the `cursor: pointer` block above, never reaches a touch
+   device that never gets the class at all.
+   --------------------------------------------------------------------------- */
+.custom-cursor-active,
+.custom-cursor-active * {
+  cursor: none !important;
+}
+
+/* ---------------------------------------------------------------------------
    Toast motion.
 
    Written out rather than pulled from tailwindcss-animate: that plugin is not

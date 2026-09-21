@@ -18,12 +18,22 @@ import { ArrowDown, FileArchive, Upload } from "lucide-react";
  * reader announce "sk" followed by eight bullets.
  */
 
-/** Shared frame, so the four graphics align across the row. */
-function Frame({ children, dashed = false }: { children: React.ReactNode; dashed?: boolean }) {
+/** Shared frame, so the graphics align within whichever bento tile they land
+ * in - `size="lg"` for the one featured tile that gets a bigger footprint,
+ * `"md"` (the original height) everywhere else. */
+function Frame({
+  children,
+  dashed = false,
+  size = "md",
+}: {
+  children: React.ReactNode;
+  dashed?: boolean;
+  size?: "md" | "lg";
+}) {
   return (
     <div
       aria-hidden="true"
-      className={`relative flex h-36 flex-col justify-center gap-2 overflow-hidden rounded-lg border bg-surface-sunken p-3 ${
+      className={`relative flex ${size === "lg" ? "h-56" : "h-36"} flex-col justify-center gap-2 overflow-hidden rounded-lg border bg-surface-sunken p-3 ${
         dashed ? "items-center border-dashed border-border-strong" : "border-border"
       }`}
     >
@@ -54,9 +64,9 @@ function Badge({ tone, children }: { tone: "success" | "warning" | "destructive"
 }
 
 /** Zip upload: a drop target with the file already over it. */
-export function ZipDropGraphic() {
+export function ZipDropGraphic({ size }: { size?: "md" | "lg" } = {}) {
   return (
-    <Frame dashed>
+    <Frame dashed size={size}>
       <div className="flex flex-col items-center gap-1.5 text-muted">
         <Upload className="size-5" />
         <span className="text-[11px]">Drop to deploy</span>
@@ -71,9 +81,9 @@ export function ZipDropGraphic() {
 }
 
 /** GitHub auto-deploy: three pushes, three outcomes. */
-export function CommitStripGraphic() {
+export function CommitStripGraphic({ size }: { size?: "md" | "lg" } = {}) {
   return (
-    <Frame>
+    <Frame size={size}>
       <Row mono="7d36a4e">
         <Badge tone="success">Ready</Badge>
       </Row>
@@ -94,9 +104,9 @@ export function CommitStripGraphic() {
  * Pointing down, from the newer deploy to the older one wearing the Live badge,
  * is what makes it read as "this moved back".
  */
-export function RollbackGraphic() {
+export function RollbackGraphic({ size }: { size?: "md" | "lg" } = {}) {
   return (
-    <Frame>
+    <Frame size={size}>
       <Row mono="9f2c1ab">
         <span className="text-[10px] text-muted">2 min ago</span>
       </Row>
@@ -119,9 +129,9 @@ export function RollbackGraphic() {
  * values are write-only and Dropbin cannot show them back. Drawing them
  * unmasked here would advertise a feature that does not exist.
  */
-export function EnvKeysGraphic() {
+export function EnvKeysGraphic({ size }: { size?: "md" | "lg" } = {}) {
   return (
-    <Frame>
+    <Frame size={size}>
       {[
         ["API_KEY", "sk••••••••"],
         ["DATABASE_URL", "po••••••••"],

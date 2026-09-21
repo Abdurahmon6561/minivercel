@@ -11,24 +11,26 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
     />
 
     <script>
-      // Applied before first paint, so a dark-theme user never sees a light
+      // Applied before first paint, so a light-theme user never sees a dark
       // flash while the bundle loads (or vice versa). Duplicates the logic in
       // src/lib/theme.ts on purpose: this runs inline, and inline cannot
       // import. Keep the storage key in step with THEME_STORAGE_KEY there.
       //
-      // The default is light, not the OS preference: only an explicit stored
-      // "dark" turns dark mode on. A first visit, a cleared preference, or a
-      // browser that blocks storage all land on light.
+      // The default is dark, not the OS preference: only an explicit stored
+      // "light" turns light mode on. A first visit, a cleared preference, or
+      // a browser that blocks storage all land on dark - the liquid/glow
+      // visual language this redesign is built around reads as premium
+      // against near-black and muted against a light page.
       (function () {
-        var theme = "light";
+        var theme = "dark";
         try {
-          if (localStorage.getItem("minivercel-theme") === "dark") theme = "dark";
+          if (localStorage.getItem("minivercel-theme") === "light") theme = "light";
         } catch (e) {
-          /* site data blocked - fall through to light */
+          /* site data blocked - fall through to dark */
         }
         document.documentElement.setAttribute("data-theme", theme);
         document.documentElement.style.colorScheme = theme;

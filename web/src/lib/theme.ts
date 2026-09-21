@@ -42,18 +42,20 @@ export function systemTheme(): ResolvedTheme {
 }
 
 /**
- * The stored preference, or "light" when nothing is stored or the value is
- * junk - the product's default is light regardless of the OS, not "follow
- * the system", so a first-time visitor on a dark-mode OS still lands on
- * light. localStorage throws outright in a locked-down browser rather than
- * returning null, so this can never be an unguarded read.
+ * The stored preference, or "dark" when nothing is stored or the value is
+ * junk - the product's default is dark regardless of the OS, not "follow
+ * the system", so a first-time visitor on a light-mode OS still lands on
+ * dark. Matches index.html's inline pre-paint script, which has to duplicate
+ * this default since it runs before any module can. localStorage throws
+ * outright in a locked-down browser rather than returning null, so this can
+ * never be an unguarded read.
  */
 export function storedPreference(): ThemePreference {
   try {
     const raw = localStorage.getItem(THEME_STORAGE_KEY);
-    return isPreference(raw) ? raw : "light";
+    return isPreference(raw) ? raw : "dark";
   } catch {
-    return "light";
+    return "dark";
   }
 }
 

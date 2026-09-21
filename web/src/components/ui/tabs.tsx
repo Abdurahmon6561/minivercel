@@ -51,7 +51,7 @@ export function TabsTrigger({
         "flex shrink-0 items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium whitespace-nowrap",
         "text-muted transition-colors hover:bg-surface-hover hover:text-text",
         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
-        // The 2px indigo rule on the leading edge. Transparent when inactive so
+        // The 2px blue rule on the leading edge. Transparent when inactive so
         // the label never shifts by two pixels as the selection moves.
         "border-l-2 border-transparent",
         "data-[state=active]:border-l-primary data-[state=active]:bg-primary-subtle data-[state=active]:text-primary-subtle-fg",

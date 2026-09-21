@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useParams, useSearchParams } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthProvider";
-import { ErrorBanner, Spinner } from "./components/Bits";
+import { ErrorBanner } from "./components/Bits";
 import { Layout } from "./components/Layout";
+import { LoadingSplash } from "./components/LoadingSplash";
 import { api, type Me } from "./lib/api";
 import { dashboardOrigin, isDashboardHost } from "./lib/host";
 import { ProjectChromeProvider } from "./lib/project-chrome";
@@ -44,7 +45,7 @@ function Root() {
   // and navigating before it resolves would bounce a signed-in user through
   // /login - which on the OAuth return would also discard the URL fragment
   // supabase-js reads the session out of.
-  if (loading) return <div className="min-h-screen bg-bg" />;
+  if (loading) return <LoadingSplash />;
 
   return <Navigate to={session ? "/projects" : "/login"} replace />;
 }
@@ -116,11 +117,7 @@ function Dashboard() {
   if (configError) return <Misconfigured message={configError} />;
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Spinner label="Signing in" />
-      </div>
-    );
+    return <LoadingSplash label="Signing in" />;
   }
 
   if (!session) {
