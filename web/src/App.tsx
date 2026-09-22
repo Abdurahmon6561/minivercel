@@ -44,6 +44,8 @@ function Root() {
   // and navigating before it resolves would bounce a signed-in user through
   // /login - which on the OAuth return would also discard the URL fragment
   // supabase-js reads the session out of.
+  if (loading) return null;
+
   return <Navigate to={session ? "/projects" : "/login"} replace />;
 }
 
