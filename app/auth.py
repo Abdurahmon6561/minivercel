@@ -129,6 +129,12 @@ async def verify_token(token: str, settings: Settings) -> User:
                 algorithms=["HS256"],
                 audience=settings.supabase_jwt_audience or None,
                 options=options if settings.supabase_jwt_audience else {**options, "verify_aud": False},
+                # A token minted the instant this runs is stamped with
+                # Supabase's clock, not ours; PyJWT checks `iat` with zero
+                # tolerance by default, so any clock drift on this host makes
+                # a freshly-issued token look "not yet valid" for a few
+                # seconds. 10s covers ordinary drift without weakening exp.
+                leeway=10,
             )
         elif algorithm in ASYMMETRIC_ALGORITHMS:
             key = await _jwks.key_for(header.get("kid"), settings)
@@ -138,6 +144,7 @@ async def verify_token(token: str, settings: Settings) -> User:
                 algorithms=ASYMMETRIC_ALGORITHMS,
                 audience=settings.supabase_jwt_audience or None,
                 options=options if settings.supabase_jwt_audience else {**options, "verify_aud": False},
+                leeway=10,
             )
         else:
             # Includes alg=none and HS256 with no configured secret.
