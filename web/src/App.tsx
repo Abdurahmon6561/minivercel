@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useParams, useSearchParams } from "react-route
 
 import { useAuth } from "./auth/AuthProvider";
 import { ErrorBanner } from "./components/Bits";
+import { CustomCursor } from "./components/CustomCursor";
 import { Layout } from "./components/Layout";
 import { api, type Me } from "./lib/api";
 import { dashboardOrigin, isDashboardHost } from "./lib/host";
@@ -34,11 +35,22 @@ function Misconfigured({ message }: { message: string }) {
  *                        offers them a way through to the dashboard
  *   app.getdropbin.xyz   never a page of its own; a redirect to wherever the
  *                        session says they belong
+ *
+ * `CustomCursor` is mounted here rather than site-wide in main.tsx: the user
+ * wants it on the marketing page only, not on the dashboard ("admin side"),
+ * and this is the one place that already knows the difference. It renders
+ * nothing (`useCanHover()` gates it internally) on a touch device either way.
  */
 function Root() {
   const { session, loading } = useAuth();
 
-  if (!isDashboardHost()) return <Landing />;
+  if (!isDashboardHost())
+    return (
+      <>
+        <Landing />
+        <CustomCursor />
+      </>
+    );
 
   // Only the dashboard host waits. The redirect target depends on the session,
   // and navigating before it resolves would bounce a signed-in user through

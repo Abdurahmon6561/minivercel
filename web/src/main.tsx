@@ -4,7 +4,6 @@ import { BrowserRouter } from "react-router-dom";
 
 import { App } from "./App";
 import { AuthProvider } from "./auth/AuthProvider";
-import { CustomCursor } from "./components/CustomCursor";
 import { LiquidIntro } from "./components/LiquidIntro";
 import { ToastProvider } from "./components/ui/toast";
 import { ThemeProvider } from "./lib/theme-provider";
@@ -17,9 +16,10 @@ import "./index.css";
  * adding its own wait on top. See LiquidIntro for why it always finishes on
  * its own (once per session, or immediately if already seen/reduced motion).
  *
- * CustomCursor is mounted here, not inside Landing - the brief asks for it
- * site-wide, and it is a no-op render (`null`) everywhere `useCanHover()` is
- * false, so mounting it once here costs nothing on the pages that don't want it.
+ * CustomCursor is NOT mounted here - it needs to know landing vs. dashboard
+ * to render only on the former, and that distinction lives inside the
+ * router (`isDashboardHost()` in App.tsx's `Root`), which this component
+ * sits outside of. See that file for where it actually mounts.
  */
 function Root() {
   const [booted, setBooted] = useState(false);
@@ -39,7 +39,6 @@ function Root() {
           </BrowserRouter>
         </ToastProvider>
       </ThemeProvider>
-      <CustomCursor />
       {!booted && <LiquidIntro onDone={() => setBooted(true)} />}
     </>
   );

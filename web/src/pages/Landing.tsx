@@ -5,16 +5,17 @@ import { ArrowDown, ArrowRight, ChevronDown, Globe2, History, Lock, PlayCircle, 
 import {
   AnimatePresence,
   motion,
+  useInView,
+  useMotionTemplate,
   useMotionValue,
   useMotionValueEvent,
   useReducedMotion,
   useScroll,
   useSpring,
+  useTransform,
+  type MotionValue,
 } from "motion/react";
-import { useGSAP } from "@gsap/react";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
- 
+
 import { useAuth } from "../auth/AuthProvider";
 import { BlobFallback } from "../components/landing/BlobFallback";
 import {
@@ -45,10 +46,6 @@ import {
 // `useCanRenderWebGL()` says yes. Shared between Hero and CallToAction so
 // both instances come from the same chunk instead of two.
 const LiquidBlob = lazy(() => import("../components/landing/LiquidBlob"));
-
-// Registering twice (React Strict Mode, or this module re-evaluating under
-// Vite HMR) is harmless - gsap deduplicates by plugin name internally.
-gsap.registerPlugin(ScrollTrigger);
 
 /**
  * Whether the page has scrolled past the hero. The header is transparent -
@@ -183,52 +180,154 @@ function LiquidWord({
 }
 
 /**
+ * A floating, product-native visual for the hero: `SitePreview`'s browser
+ * mockup - real URL shape, real status tokens, the product's own furniture -
+ * as the hero's interactive centrepiece instead of an unused component.
+ * Tilts in 3D toward the pointer with actual spring physics (the same
+ * `useMotionValue` + `useSpring(SPRING)` pattern `MagneticCta` already
+ * established, not a CSS transition standing in for one), and settles back
+ * to flat the instant the pointer leaves.
+ *
+ * The rotation range is deliberately small (max 9deg): a product screenshot
+ * that flips around like a playing card stops reading as a screenshot. The
+ * inner content shifts a few px counter to the tilt - real depth-parallax,
+ * not just a flat plane rotating - which is what makes it read as a card
+ * lifting off the page rather than a picture tilting in its frame.
+ */
+function HeroPreviewCard() {
+  const canHover = useCanHover();
+  const reduce = !!useReducedMotion();
+  const ref = useRef<HTMLDivElement>(null);
+
+  const rawRotateX = useMotionValue(0);
+  const rawRotateY = useMotionValue(0);
+  const rotateX = useSpring(rawRotateX, SPRING);
+  const rotateY = useSpring(rawRotateY, SPRING);
+  const liftX = useSpring(useTransform(rawRotateY, [-9, 9], [-7, 7]), SPRING);
+  const liftY = useSpring(useTransform(rawRotateX, [-9, 9], [7, -7]), SPRING);
+
+  const tiltActive = canHover && !reduce;
+
+  function onMove(event: React.MouseEvent<HTMLDivElement>) {
+    if (!tiltActive || !ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const px = (event.clientX - rect.left) / rect.width - 0.5;
+    const py = (event.clientY - rect.top) / rect.height - 0.5;
+    rawRotateY.set(px * 18);
+    rawRotateX.set(py * -18);
+  }
+
+  function onLeave() {
+    rawRotateX.set(0);
+    rawRotateY.set(0);
+  }
+
+  return (
+    <motion.div variants={fadeUpVariants(reduce, 24)} className="mt-16 w-full max-w-xl">
+      <div style={{ perspective: 1200 }}>
+        <motion.div
+          ref={ref}
+          onMouseMove={onMove}
+          onMouseLeave={onLeave}
+          style={tiltActive ? { rotateX, rotateY, transformStyle: "preserve-3d" } : undefined}
+          className="relative"
+        >
+          <motion.div style={tiltActive ? { x: liftX, y: liftY } : undefined}>
+            <SitePreview />
+          </motion.div>
+          {/* A soft brand-coloured glow beneath the card, so the tilt reads
+              as lifting off the page rather than a flat image rotating in
+              place. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -inset-x-6 -bottom-6 -z-10 h-16 rounded-full bg-primary/25 blur-2xl"
+          />
+        </motion.div>
+      </div>
+    </motion.div>
+  );
+}
+
+/**
  * The hero.
  *
- * Rebuilt around the liquid blob as the visual anchor rather than a
- * background decoration behind a browser mockup - a large off-center
- * WebGL sphere sitting behind an oversized, asymmetric headline, not a
- * two-column split. `useCanRenderWebGL()` (lib/motion.ts) gates it: reduced
+ * Centred, not left-aligned-with-a-blob-on-the-right - the earlier
+ * composition hugged the left edge of a 7xl container with the right half
+ * given to the WebGL blob, which read as off-balance on anything narrower
+ * than a very wide desktop. Everything sits on one centre line: badge,
+ * headline, subhead, CTAs, and now the preview card below them.
+ *
+ * The blob is a grounding glow the button row sits on rather than a large
+ * object beside the text - anchored low and centred, behind nothing that has
+ * to be read. `useCanRenderWebGL()` (lib/motion.ts) gates it: reduced
  * motion, a coarse pointer, a narrow viewport, or no WebGL support at all
  * fall back to `BlobFallback`'s static gradient, which shares the same
  * tokens so the page never looks broken while deciding.
  *
- * The highlighted word stays on the warm accent tokens.css reserves for
- * exactly this. The button reads "Get started", not "Continue with GitHub":
- * /login now offers a plain email sign-up ahead of GitHub, and a button that
- * promised GitHub before the visitor had even chosen how to sign up was
- * quietly closing off the option this hero's own sentence advertises - a
- * zip needs no GitHub account at all.
- *
- * Entrance: one stagger container (badge, headline, subhead, CTA row), and
- * the headline is itself a nested stagger container for its own words - a
+ * Entrance: one stagger container (badge, headline, subhead, CTA row,
+ * preview card), and the headline is itself a nested stagger container for
+ * its own words (`LiquidWord`, one per word, its own liquid-wipe reveal) - a
  * parent's `animate` cascades to any descendant with its own `variants`, so
  * triggering "visible" once at the top plays the whole sequence in order.
+ *
+ * Two motion techniques beyond the entrance itself:
+ *  - A scroll-linked parallax on the decorative layer only (`useScroll` +
+ *    `useTransform`, straight out of motion-patterns). Deliberately
+ *    background-only - it never touches content, gates nothing, and pins
+ *    nothing, which is what keeps it categorically different from the
+ *    pinned scroll-jacking this redesign already removed from "How it works".
+ *  - `HeroPreviewCard`, below: real spring-physics pointer tilt on the
+ *    product's own browser-chrome mockup, the hero's interactive centrepiece.
+ * Both collapse to 0 under reduced motion, matching this file's existing
+ * hard-skip convention rather than merely slowing down.
  */
 function Hero() {
   const { session, loading } = useAuth();
   const reduce = !!useReducedMotion();
   const canRenderWebGL = useCanRenderWebGL();
+  const sectionRef = useRef<HTMLDivElement>(null);
+
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start start", "end start"],
+  });
+  const glowY = useTransform(scrollYProgress, [0, 1], [0, reduce ? 0 : 70]);
+  const blobY = useTransform(scrollYProgress, [0, 1], [0, reduce ? 0 : 140]);
 
   return (
-    <section className="relative flex min-h-dvh items-center overflow-hidden pt-28 pb-20">
+    <section
+      ref={sectionRef}
+      className="relative flex min-h-dvh items-center justify-center overflow-hidden pt-28 pb-20 text-center"
+    >
       {/* Decorative only, and hidden from assistive tech: these carry no
-          meaning, they set a temperature. */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-20">
-        <div className="absolute -top-32 right-[-10%] size-[34rem] rounded-full bg-warm-orange/20 blur-[110px]" />
-        <div className="absolute top-24 right-[18%] size-[22rem] rounded-full bg-primary/15 blur-[100px]" />
-        <div className="absolute -bottom-40 -left-24 size-[30rem] rounded-full bg-primary/10 blur-[110px]" />
-      </div>
-
-      {/* The blob: large, off-center right, sitting behind the text (-z-10,
-          above the -z-20 washes). Positioned so its densest mass sits clear
-          of where the headline's own text lands, rather than directly under
-          it - contrast against the near-black default background is already
-          high, but a bright distorted sphere directly behind small text
-          would still fight it. */}
-      <div
+          meaning, they set a temperature. Symmetric either side of centre
+          now, where the old asymmetric placement made sense beside
+          left-aligned text and would otherwise pull the eye off-centre. */}
+      <motion.div
         aria-hidden="true"
-        className="pointer-events-none absolute top-1/2 right-[-12%] -z-10 size-[85vw] max-w-[560px] -translate-y-1/2 sm:right-[-6%] sm:size-[55vw] lg:right-[2%] lg:size-[42vw]"
+        style={{ y: glowY }}
+        className="pointer-events-none absolute inset-0 -z-20"
+      >
+        <div className="absolute -top-36 left-1/2 size-160 -translate-x-1/2 rounded-full bg-primary/12 blur-[120px]" />
+        <div className="absolute top-1/3 -left-28 size-88 rounded-full bg-accent-vivid/18 blur-[100px]" />
+        <div className="absolute top-1/3 -right-28 size-88 rounded-full bg-primary/15 blur-[100px]" />
+      </motion.div>
+
+      {/* The blob, now a grounding glow the button row sits on rather than a
+          large object beside the text - centred, low, and behind nothing
+          that has to be read. Sized well past the button row's own footprint
+          on purpose: the CTAs are opaque pills at z-10, so anything directly
+          behind them is fully hidden regardless of the blob's own size or
+          opacity - a blob sized to roughly match the buttons was therefore
+          mostly invisible, hidden under exactly the two shapes sitting on
+          top of it. This is large enough that most of it falls in the open
+          margin around the buttons instead, at full opacity - the dimming
+          this had was fighting the same problem from the other direction and
+          made it worse, not better. */}
+      <motion.div
+        aria-hidden="true"
+        style={{ y: blobY }}
+        className="pointer-events-none absolute bottom-[-6%] left-1/2 -z-10 size-[130vw] max-w-200 -translate-x-1/2 sm:size-[75vw] lg:size-[46vw]"
       >
         {canRenderWebGL ? (
           <Suspense fallback={<BlobFallback />}>
@@ -237,11 +336,11 @@ function Hero() {
         ) : (
           <BlobFallback />
         )}
-      </div>
+      </motion.div>
 
-      <div className="relative z-10 mx-auto w-full max-w-7xl px-6 sm:px-8">
+      <div className="relative z-10 mx-auto w-full max-w-4xl px-6 sm:px-8">
         <motion.div
-          className="max-w-4xl"
+          className="flex flex-col items-center"
           variants={staggerVariants(reduce, 0.12)}
           initial="hidden"
           animate="visible"
@@ -254,10 +353,12 @@ function Hero() {
             Fast <span aria-hidden="true">&middot;</span> Secure <span aria-hidden="true">&middot;</span> Global
           </motion.p>
 
-          {/* Oversized and asymmetric - breaking past the subhead's own
-              column width, not centred to it. font-display (Bricolage
-              Grotesque) rather than the body's Inter, the one place on the
-              page that size/character contrast gets pushed this far. */}
+          {/* Still oversized, now centred rather than asymmetric - a
+              balanced line length reads as intentional for centre-aligned
+              display type the way the old ragged-right one only worked
+              left-aligned. font-display (Bricolage Grotesque) rather than
+              the body's Inter, the one place on the page that
+              size/character contrast gets pushed this far. */}
           <motion.h1
             variants={staggerVariants(reduce, 0.06)}
             className="mt-8 text-[15vw] leading-[0.86] font-semibold tracking-tight text-balance text-text font-display sm:text-[9vw] lg:text-[clamp(4rem,6.5vw,8rem)]"
@@ -267,7 +368,7 @@ function Hero() {
             <br className="hidden sm:block" />
             <LiquidWord reduce={reduce}>sites</LiquidWord>{" "}
             <LiquidWord reduce={reduce}>in</LiquidWord>{" "}
-            <LiquidWord reduce={reduce} className="text-warm-orange">
+            <LiquidWord reduce={reduce} className="text-accent">
               seconds
             </LiquidWord>
             .
@@ -280,7 +381,10 @@ function Hero() {
             Push a zip or a GitHub repo. Get a public URL. Roll back with one click.
           </motion.p>
 
-          <motion.div variants={fadeUpVariants(reduce, 12)} className="mt-10 flex flex-wrap items-center gap-3">
+          <motion.div
+            variants={fadeUpVariants(reduce, 12)}
+            className="mt-10 flex flex-wrap items-center justify-center gap-3"
+          >
             {/* `variant="primary"` - the one solid brand colour, and the
                 only filled button on the page. The magnetic pull marks this
                 specific button as the one action this whole page exists for,
@@ -307,6 +411,8 @@ function Hero() {
               </Link>
             </p>
           )}
+
+          <HeroPreviewCard />
         </motion.div>
       </div>
     </section>
@@ -342,61 +448,6 @@ const STEPS: { Icon: ComponentType<{ className?: string }>; number: string; titl
     body: "Every deploy keeps its own files, so promoting a previous version takes one click.",
   },
 ];
-
-/** The pre-existing layout: 3 side-by-side cards, whileInView stagger, no
- * pin. This is now specifically the reduced-motion fallback for
- * `HowItWorksScrolly` below, not the default - GSAP's pinned version is. */
-function HowItWorksStatic() {
-  const reduce = !!useReducedMotion();
-
-  return (
-    <div className="mx-auto max-w-7xl px-6 py-24 sm:px-8 sm:py-28">
-      <Reveal className="max-w-2xl">
-        <p className="text-xs font-semibold tracking-[0.13em] text-accent uppercase">How it works</p>
-        <h2 className="mt-4 font-display text-3xl font-semibold tracking-[-0.035em] text-balance text-text sm:text-4xl">
-          Three steps, and no configuration to learn.
-        </h2>
-      </Reveal>
-
-      <motion.ol
-        className="mt-14 grid gap-12 sm:grid-cols-3 sm:gap-8"
-        variants={staggerVariants(reduce, 0.08, 0.1)}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, margin: "-80px" }}
-      >
-        {STEPS.map(({ Icon, number, title, body }) => (
-          <motion.li
-            key={number}
-            variants={fadeUpVariants(reduce, 14)}
-            className="relative border-t border-border pt-9"
-          >
-            <span aria-hidden="true" className="absolute -top-1.5 left-0 size-3 rounded-full bg-accent" />
-            <h3 className="flex items-center justify-between gap-3 text-base font-semibold tracking-tight text-text">
-              <span className="flex items-center gap-2">
-                <Icon className="size-4 shrink-0 text-accent" aria-hidden="true" />
-                {title}
-              </span>
-              <span aria-hidden="true" className="font-mono text-2xl font-bold text-border-strong sm:text-3xl">
-                {number}
-              </span>
-            </h3>
-            <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted">{body}</p>
-          </motion.li>
-        ))}
-      </motion.ol>
-
-      <Reveal delay={200}>
-        <figure className="mt-16">
-          <SitePreview />
-          <figcaption className="mt-4 text-center text-sm text-muted">
-            A finished deployment: the public URL, its status, and the commit it came from.
-          </figcaption>
-        </figure>
-      </Reveal>
-    </div>
-  );
-}
 
 /**
  * Mirrors the browser-chrome frame `SitePreview` uses, but with a body that
@@ -487,130 +538,95 @@ function HowItWorksMockup({ activeStep }: { activeStep: number }) {
 }
 
 /**
- * The pinned scrollytelling version. One step is visible at a time inside a
- * pinned box; scrolling scrubs a GSAP timeline that fades/slides the active
- * step out and the next one in, while `HowItWorksMockup` beside it reacts to
- * whichever step is current - the 3 steps and the mockup as one continuous
- * sequence, not 3 cards next to a static figure.
+ * Three steps, told by a step selector next to a live preview that reacts to
+ * whichever one is current - not the earlier pinned, scroll-scrubbed
+ * timeline. That version took the scroll wheel over for the length of the
+ * section (GSAP `pin: true` + `scrub`): uncomfortable on a trackpad, worse
+ * on a phone, and it moved on its own timetable instead of the reader's.
+ * A click-driven stepper keeps the same "watch it change" moment without
+ * ever taking scrolling away from anyone.
  *
- * The timeline is built as one strictly sequential chain - each `.to()`
- * with no explicit position argument starts exactly when the previous one
- * ends, which is what actually guarantees only one step is ever
- * mid-transition at a time. The previous version gave the in/out tweens
- * explicit overlapping positions (`i` and `i + 0.15`), which is what let two
- * steps sit at meaningful opacity simultaneously - a deliberate crossfade
- * that, stretched across a whole scroll-scrubbed range, read as a stuck
- * overlap rather than a blend. Each step also gets an explicit hold
- * (a no-op tween that just consumes timeline time) so it is fully readable
- * before the next transition starts, and `pointerEvents`/`autoAlpha`
- * (which also toggles `visibility`) both go to "none"/"hidden" the instant
- * a step finishes leaving, so an invisible step can never intercept a click
- * or a screen reader's focus.
- *
- * `useGSAP` (from `@gsap/react`), not a bare `useEffect`: it wraps the
- * callback in a `gsap.context()` that reverts every tween/ScrollTrigger it
- * created automatically on unmount or re-run, which is what makes this safe
- * under StrictMode's mount-unmount-remount cycle - a bare `useEffect` would
- * leave the first run's ScrollTrigger alive after the second run's cleanup
- * only removed listeners it added, not GSAP's own internal ones.
+ * Auto-advance is the one bit of motion-for-its-own-sake this keeps, and it
+ * is deliberately mild: a slow interval that stops dead the instant someone
+ * clicks a step (autoplay fighting a reader who is actively steering is the
+ * opposite of helpful), pauses the moment the section leaves view instead of
+ * ticking along invisibly, and is skipped outright under reduced motion,
+ * where the first step just sits still until clicked.
  */
-function HowItWorksScrolly() {
-  const pinRef = useRef<HTMLDivElement>(null);
-  const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
+function HowItWorks() {
+  const reduce = !!useReducedMotion();
   const [activeStep, setActiveStep] = useState(0);
+  const [autoplay, setAutoplay] = useState(true);
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const inView = useInView(sectionRef, { amount: 0.5 });
 
-  useGSAP(
-    () => {
-      const steps = stepRefs.current.filter((el): el is HTMLDivElement => el !== null);
-      if (steps.length < 2) return;
-
-      gsap.set(steps[0], { autoAlpha: 1, y: 0, pointerEvents: "auto" });
-      gsap.set(steps.slice(1), { autoAlpha: 0, y: 30, pointerEvents: "none" });
-
-      // Timeline-time units, not seconds - `scrub` maps scroll position onto
-      // this timeline's own 0..duration range, so only the *ratio* between
-      // HOLD and FADE matters (how much of the scroll each phase gets), not
-      // their absolute size.
-      const HOLD = 1;
-      const FADE = 0.35;
-      const transitions = steps.length - 1;
-
-      const tl = gsap.timeline({
-        scrollTrigger: {
-          trigger: pinRef.current,
-          start: "top top",
-          // 100% of the pinned box's own height per step transition -
-          // scales with step count instead of a number hand-picked for
-          // exactly three steps. This is relative to the *box*, not the
-          // viewport, which is why the box's own padding just below was cut
-          // too: a percentage of a needlessly tall box is still a needlessly
-          // long scroll, no matter how reasonable the percentage looks.
-          end: `+=${transitions * 100}%`,
-          scrub: 1,
-          pin: true,
-        },
-      });
-
-      tl.to({}, { duration: HOLD }); // hold on step 0 before anything moves
-
-      for (let i = 0; i < transitions; i++) {
-        tl.to(steps[i], { autoAlpha: 0, y: -30, duration: FADE })
-          .set(steps[i], { pointerEvents: "none" })
-          .call(() => setActiveStep(i + 1))
-          .to(steps[i + 1], { autoAlpha: 1, y: 0, duration: FADE })
-          .set(steps[i + 1], { pointerEvents: "auto" })
-          .to({}, { duration: HOLD });
-      }
-    },
-    { scope: pinRef },
-  );
+  useEffect(() => {
+    if (reduce || !autoplay || !inView) return;
+    const id = window.setInterval(() => {
+      setActiveStep((step) => (step + 1) % STEPS.length);
+    }, 3400);
+    return () => window.clearInterval(id);
+  }, [reduce, autoplay, inView]);
 
   return (
-    <>
-      {/* Not inside the pinned box - this scrolls normally, and the pin only
-          engages once it has passed, so the section still reads top-to-
-          bottom before the scrollytelling moment takes over. */}
-      <div className="mx-auto max-w-7xl px-6 pt-24 sm:px-8 sm:pt-28">
+    <section id="how-it-works" className="border-y border-border bg-surface">
+      <div ref={sectionRef} className="mx-auto max-w-7xl px-6 py-24 sm:px-8 sm:py-28">
         <Reveal className="max-w-2xl">
           <p className="text-xs font-semibold tracking-[0.13em] text-accent uppercase">How it works</p>
           <h2 className="mt-4 font-display text-3xl font-semibold tracking-[-0.035em] text-balance text-text sm:text-4xl">
             Three steps, and no configuration to learn.
           </h2>
         </Reveal>
-      </div>
 
-      {/* No `min-h-dvh`/`items-center` this time - that centred a short
-          block inside a full viewport-tall box, which is what read as a
-          large empty gap above the content on any screen taller than the
-          content itself. A pinned box only needs to be as tall as what it
-          holds plus real breathing room, not the whole viewport. */}
-      <div ref={pinRef} className="relative overflow-hidden py-10 sm:py-12">
-        <div className="mx-auto grid w-full max-w-7xl items-center gap-14 px-6 sm:px-8 lg:grid-cols-[1fr_1fr] lg:gap-20">
-          <div className="relative h-60 sm:h-56">
-            {STEPS.map(({ Icon, number, title, body }, i) => (
-              <div
-                key={number}
-                ref={(el) => {
-                  stepRefs.current[i] = el;
-                }}
-                className="absolute inset-0"
-              >
-                <span aria-hidden="true" className="flex size-2.5 rounded-full bg-accent" />
-                <h3 className="mt-6 flex items-baseline gap-4">
-                  <span aria-hidden="true" className="font-mono text-4xl font-bold text-border-strong sm:text-5xl">
-                    {number}
-                  </span>
-                  <span className="flex items-center gap-2 text-xl font-semibold tracking-tight text-text sm:text-2xl">
-                    <Icon className="size-5 shrink-0 text-accent" aria-hidden="true" />
-                    {title}
-                  </span>
-                </h3>
-                <p className="mt-4 max-w-sm text-base leading-relaxed text-muted">{body}</p>
-              </div>
-            ))}
-          </div>
+        <div className="mt-14 grid gap-10 lg:grid-cols-[minmax(0,26rem)_1fr] lg:items-center lg:gap-16">
+          {/* Each step is its own button, not a decorative list - a reader
+              who already knows which step they want should not have to wait
+              for autoplay to get there. Clicking one also turns autoplay off
+              for good, not just for a beat: resuming on its own after a
+              deliberate choice would undo the very control this replaced
+              scroll-jacking to give back. */}
+          <ol className="flex flex-col gap-2">
+            {STEPS.map(({ Icon, number, title, body }, i) => {
+              const active = i === activeStep;
+              return (
+                <li key={number}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveStep(i);
+                      setAutoplay(false);
+                    }}
+                    aria-current={active ? "step" : undefined}
+                    className={cn(
+                      "flex w-full items-start gap-4 rounded-xl border p-4 text-left transition-colors duration-200",
+                      active
+                        ? "border-accent/30 bg-accent-subtle"
+                        : "border-transparent hover:bg-surface-hover",
+                    )}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "flex size-10 shrink-0 items-center justify-center rounded-full font-mono text-sm font-bold transition-colors duration-200",
+                        active ? "bg-accent text-accent-fg" : "bg-surface-sunken text-muted",
+                      )}
+                    >
+                      {number}
+                    </span>
+                    <span className="min-w-0 pt-1">
+                      <span className="flex items-center gap-2 text-base font-semibold tracking-tight text-text">
+                        <Icon className="size-4 shrink-0 text-accent" aria-hidden="true" />
+                        {title}
+                      </span>
+                      <span className="mt-1.5 block text-sm leading-relaxed text-muted">{body}</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
 
-          <div className="relative">
+          <div>
             <HowItWorksMockup activeStep={activeStep} />
             <p className="mt-4 text-center text-sm text-muted">
               A finished deployment: the public URL, its status, and the commit it came from.
@@ -618,16 +634,6 @@ function HowItWorksScrolly() {
           </div>
         </div>
       </div>
-    </>
-  );
-}
-
-function HowItWorks() {
-  const reduce = !!useReducedMotion();
-
-  return (
-    <section id="how-it-works" className="border-y border-border bg-surface">
-      {reduce ? <HowItWorksStatic /> : <HowItWorksScrolly />}
     </section>
   );
 }
@@ -682,6 +688,35 @@ const BENTO_SPAN = [
   "sm:col-span-2 lg:col-span-3",
 ];
 
+/**
+ * The ambient "spotlight" glow that tracks the pointer across a card - a
+ * radial gradient positioned at the pointer's own coordinates via
+ * `useMotionTemplate`, which builds the CSS string itself from motion
+ * values so the gradient's position updates without a React re-render per
+ * pixel of mouse movement. An absolutely-positioned overlay, not the card's
+ * own background, so it can sit above the border and below the content
+ * without either of them needing to know it exists. Fades in on hover and
+ * back out on leave; never mounted at all without real hover support.
+ */
+function CardSpotlight({
+  x,
+  y,
+  opacity,
+}: {
+  x: MotionValue<number>;
+  y: MotionValue<number>;
+  opacity: MotionValue<number>;
+}) {
+  const background = useMotionTemplate`radial-gradient(320px circle at ${x}px ${y}px, var(--color-primary) 0%, transparent 75%)`;
+  return (
+    <motion.div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 -z-10 rounded-xl"
+      style={{ background, opacity }}
+    />
+  );
+}
+
 function FeatureCard({
   Graphic,
   title,
@@ -691,17 +726,35 @@ function FeatureCard({
 }: (typeof FEATURES)[number] & { featured?: boolean; className?: string }) {
   const canHover = useCanHover();
   const reduce = !!useReducedMotion();
+  const ref = useRef<HTMLDivElement>(null);
+
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  const glowOpacity = useMotionValue(0);
+
+  function onMove(event: React.MouseEvent<HTMLDivElement>) {
+    if (!canHover || !ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    mouseX.set(event.clientX - rect.left);
+    mouseY.set(event.clientY - rect.top);
+  }
+
   return (
     <motion.article
+      ref={ref}
+      onMouseMove={onMove}
+      onMouseEnter={() => canHover && glowOpacity.set(0.22)}
+      onMouseLeave={() => canHover && glowOpacity.set(0)}
       variants={fadeUpVariants(reduce, 14)}
       whileHover={canHover ? { y: -6 } : undefined}
       transition={SPRING}
       className={cn(
-        "rounded-xl border border-border bg-surface p-5",
+        "relative overflow-hidden rounded-xl border border-border bg-surface p-5 transition-colors duration-300 hover:border-primary/30",
         featured && "flex flex-col justify-between",
         className,
       )}
     >
+      {canHover && <CardSpotlight x={mouseX} y={mouseY} opacity={glowOpacity} />}
       <Graphic size={featured ? "lg" : undefined} />
       <div className={featured ? "mt-auto" : undefined}>
         <h3 className={cn("mt-5 font-semibold tracking-tight text-text", featured ? "text-xl" : "text-base")}>
@@ -892,7 +945,10 @@ function ComparisonBody() {
           <motion.tr
             key={feature}
             variants={fadeUpVariants(reduce, 10)}
-            className="cursor-pointer border-t border-border transition-colors hover:bg-surface-hover"
+            whileHover={{ scale: 1.01 }}
+            transition={SPRING}
+            style={{ transformOrigin: "center" }}
+            className="relative cursor-pointer border-t border-border transition-[background-color,box-shadow] duration-300 hover:bg-surface-hover hover:shadow-[0_0_0_1px_var(--color-primary),0_10px_28px_-10px_var(--color-primary)]"
             onClick={() => setExpanded(isOpen ? null : feature)}
             aria-expanded={isOpen}
           >
@@ -1025,8 +1081,8 @@ function CallToAction() {
   return (
     <section className="relative overflow-hidden">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-20">
-        <div className="absolute -top-44 left-1/2 size-[36rem] -translate-x-1/2 rounded-full bg-warm-orange/18 blur-[120px]" />
-        <div className="absolute -bottom-32 right-[6%] size-[26rem] rounded-full bg-primary/14 blur-[110px]" />
+        <div className="absolute -top-44 left-1/2 size-144 -translate-x-1/2 rounded-full bg-accent-vivid/18 blur-[120px]" />
+        <div className="absolute -bottom-32 right-[6%] size-104 rounded-full bg-primary/14 blur-[110px]" />
       </div>
 
       {/* The blob returns, smaller and full-bleed, as a bookend to the hero
@@ -1065,31 +1121,53 @@ function CallToAction() {
           <LiquidWord reduce={reduce}>Start</LiquidWord> <LiquidWord reduce={reduce}>deploying.</LiquidWord>
         </motion.h2>
 
-        <Reveal delay={150} className="mt-9 flex justify-center">
+        {/* Spring-driven, not `Reveal`'s tween - the deliberate exception on
+            this page. lib/motion.ts reserves springs for direct-manipulation
+            feedback and keeps scroll entrances on EASE everywhere else; this
+            closing moment is the one place a slightly more physical settle
+            earns its keep, as the page's last beat rather than its rhythm. */}
+        <motion.div
+          initial={{ opacity: 0, y: reduce ? 0 : 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={reduce ? { duration: 0 } : { ...SPRING, delay: 0.1 }}
+          className="mt-9 flex justify-center"
+        >
           {/* Offering to sign in to someone already signed in is a dead end,
               so the button changes rather than the page pretending not to
               know who is reading it. Same "Get started" as the hero, for the
               same reason: /login, not GitHub specifically, is what this
-              button leads to. */}
+              button leads to. Same magnetic pull as the hero's primary CTA
+              too - the page's two real actions should feel like the same
+              button, not two different ones that happen to say similar things. */}
           {!loading &&
             (session ? (
-              <a href={dashboardHref("/projects")}>
-                <Button variant="primary" size="lg" icon={<ArrowRight />}>
-                  Open your dashboard
-                </Button>
-              </a>
+              <MagneticCta>
+                <a href={dashboardHref("/projects")}>
+                  <Button variant="primary" size="lg" icon={<ArrowRight />}>
+                    Open your dashboard
+                  </Button>
+                </a>
+              </MagneticCta>
             ) : (
-              <a href={dashboardHref("/login")}>
-                <Button variant="primary" size="lg" icon={<ArrowRight />}>
-                  Get started
-                </Button>
-              </a>
+              <MagneticCta>
+                <a href={dashboardHref("/login")}>
+                  <Button variant="primary" size="lg" icon={<ArrowRight />}>
+                    Get started
+                  </Button>
+                </a>
+              </MagneticCta>
             ))}
-        </Reveal>
+        </motion.div>
 
-        <Reveal delay={250}>
+        <motion.div
+          initial={{ opacity: 0, y: reduce ? 0 : 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={reduce ? { duration: 0 } : { ...SPRING, delay: 0.22 }}
+        >
           <p className="mt-6 text-sm text-muted">Free while in beta. No credit card. No lock-in.</p>
-        </Reveal>
+        </motion.div>
       </div>
     </section>
   );

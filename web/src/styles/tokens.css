@@ -10,12 +10,16 @@
    TWO accents, with different jobs. Getting this wrong is what makes a
    two-colour palette look noisy:
 
-     primary (blue)           Actions. Buttons you press, the active nav item,
+     primary (cobalt)         Actions. Buttons you press, the active nav item,
                               links. If pressing it does something, it is
                               primary.
-     accent  (cyan)           Emphasis. Feature-card icons, key metrics, the
+     accent  (lime)           Emphasis. Feature-card icons, key metrics, the
                               landing hero's highlighted words, chart strokes.
                               Decoration and data - never a plain "Save".
+
+   Rebrand 2026-09-23: cobalt + lime, "bold / energetic / digital" replaces
+   the earlier indigo + cyan pair. Only the hue changed - the job each token
+   does, the neutral ramp, and every status colour are untouched.
 
    A screen should have exactly one filled primary button and any number of
    accent-coloured icons and numbers. Reverse that and it reads as a carnival.
@@ -58,32 +62,33 @@
   --text: #0f172a; /* slate-900 - 17.1:1 on --bg */
   --text-muted: #64748b; /* slate-500 -  4.6:1 on --bg, 4.8:1 on --surface */
 
-  /* Primary - blue. Actions.
+  /* Primary - cobalt. Actions.
      The brand colour: every primary button, active nav state and link on
-     the product runs through this one token. Blue-700, not the more usual
-     blue-600 - blue-600 is already --info's solid colour a few lines down,
-     and a brand action colour that happens to double as a status colour
-     reads as "is this button telling me something, or is it the CTA" the
-     one time they land near each other. White on #1d4ed8 is 6.7:1.
-     MEASURED: white text on --primary is 6.7:1, comfortably clears AA. */
-  --primary: #1d4ed8; /* blue-700 */
-  --primary-hover: #1e40af; /* blue-800 */
+     the product runs through this one token. #2457ff is the brand's own
+     cobalt swatch, used as-is - it is already vivid enough to need no
+     adjustment for this role, unlike accent below.
+     MEASURED: white text on --primary is 5.41:1 (relative luminance 0.144),
+     comfortably clears AA (4.5:1). */
+  --primary: #2457ff; /* cobalt */
+  --primary-hover: #1f4ad9; /* cobalt, ~12% darker */
   --primary-fg: #ffffff;
-  --primary-subtle: #eff6ff; /* blue-50  */
-  --primary-subtle-fg: #1e3a8a; /* blue-900 */
+  --primary-subtle: #eaf1ff; /* cobalt-50 */
+  --primary-subtle-fg: #163a9e; /* cobalt-900 */
 
-  /* Accent - cyan. Emphasis.
-     Cyan-700 rather than the cyan-500 it is drawn from: #06b6d4 on white is
-     2.6:1, which is unreadable as a metric and illegible as a label. This is
-     the same hue two steps down, still unmistakably cyan against the blue
-     primary, and 5.4:1 on white. The dark side gets the bright value, where it works.
-     The cyan-500 itself lives on as --accent-vivid, further down, for the
-     decorative fills where nothing has to be read. */
-  --accent: #0e7490; /* cyan-700 */
-  --accent-hover: #155e75; /* cyan-800 */
+  /* Accent - lime. Emphasis.
+     The brand's own lime swatch (#c8ff3d) is 1.12:1 on --bg - near-invisible
+     as text or an icon fill, the same problem the old cyan-500 had. This is
+     that lime pushed down to an olive-toned #4d7c0f, still unmistakably the
+     same hue family, where it is readable. The full-saturation swatch lives
+     on unchanged as --accent-vivid, further down, for the decorative fills
+     where nothing has to be read.
+     MEASURED: --accent is 4.78:1 on --bg (passes AA text), white text on
+     --accent is 5.00:1. */
+  --accent: #4d7c0f; /* lime-700 */
+  --accent-hover: #41690d; /* lime-700, ~15% darker */
   --accent-fg: #ffffff;
-  --accent-subtle: #ecfeff; /* cyan-50  */
-  --accent-subtle-fg: #155e75; /* cyan-800 */
+  --accent-subtle: #f7fee7; /* lime-50  */
+  --accent-subtle-fg: #365314; /* lime-900 */
 
   /* Destructive - saturated red, for anything that removes data. */
   --destructive: #dc2626;
@@ -107,28 +112,11 @@
   --info-subtle-fg: #1e40af;
 
   /* One focus ring colour everywhere, so keyboard focus is never ambiguous
-     about what it is highlighting. Cyan, so it stays visible on top of the
-     blue primary button - a ring in the primary hue on a primary-coloured
-     button is a ring nobody can see. */
-  --ring: #0891b2; /* cyan-600 */
-
-  /* Warm accent - LANDING PAGE ONLY, and decorative there.
-     The one deliberate exception to a palette that is blue end to end: the
-     brand is blue primary + orange secondary, exactly two colours, and this
-     is the orange half. Belongs in gradient washes and a highlighted word in
-     a display headline - never on a control, a status or a label. The
-     product itself stays on --primary.
-
-     One step down from the orange-500 it is drawn from, because that does
-     not survive a light background: #f97316 is 2.68:1 on --bg, which fails
-     even the 3:1 a meaningful graphic needs.
-
-     MEASURED, on --bg: --warm-orange is 3.40:1 - large text (>=24px) and
-     graphics only, not AA's 4.5:1 for body copy. orange-700 #c2410c (4.95:1)
-     is the swap if a warm colour is ever needed for running text.
-
-     Dark needs no such care - it clears 7:1 on a near-black ground. */
-  --warm-orange: #ea580c; /* orange-600 */
+     about what it is highlighting. Lime (the same value as --accent), so it
+     stays visible on top of the cobalt primary button - a ring in the
+     primary hue on a primary-coloured button is a ring nobody can see, and
+     blue/lime are near-complementary, which is exactly what a ring wants. */
+  --ring: #4d7c0f; /* lime-700, same as --accent */
 
   /* Illustration ink - LANDING PAGE ONLY.
      unDraw's line art is drawn for a white page: pale devices around a
@@ -188,21 +176,37 @@
     --text: #f1f5f9; /* slate-100 - 16.7:1 on --surface */
     --text-muted: #94a3b8; /* slate-400 -  7.7:1 on --bg */
 
-    /* blue-300, not the more usual blue-400 - blue-400 is already --info's
-       solid colour a few lines down, and the brand primary needs to read as
-       a different blue from the status one, not the same value doing two
-       jobs. MEASURED: --primary-fg on --primary is 8.15:1. */
-    --primary: #93c5fd; /* blue-300 */
-    --primary-hover: #bfdbfe; /* blue-200 */
-    --primary-fg: #172554; /* blue-950 - 8.15:1 on the button */
+    /* The brand's own cobalt swatch, unchanged from light theme - not a
+       pastel tint. The user's call (2026-09-25): the button and the logo
+       badge should be the identical vivid colour in both themes, the same
+       way --accent-vivid already is; only neutral text/surfaces invert.
+       This is safe for both of those - a filled button's contrast is
+       white-on-#2457ff either way (5.41:1, unchanged), and the logo badge
+       is a graphical shape, not text, where WCAG's floor is 3:1 (measures
+       3.73:1 against --bg here).
+       CAVEAT, MEASURED: a handful of places use --primary as small LINK TEXT
+       directly on --bg (Register/Login "sign in", Account, toasts) - there,
+       #2457ff on this dark --bg is 3.73:1, short of the 4.5:1 body-text
+       guideline (still comfortably clears the 3:1 large-text/graphic floor,
+       and is clearly legible in practice). Flagged rather than silently
+       fixed by picking a different value for text-only uses, since a
+       second value is exactly the two-tone split this change was asked to
+       remove. */
+    --primary: #2457ff; /* cobalt, same as light */
+    --primary-hover: #1f4ad9; /* cobalt, ~12% darker, same as light */
+    --primary-fg: #ffffff; /* 5.41:1 on the button, same as light */
     --primary-subtle: #1b2a4a;
-    --primary-subtle-fg: #dbeafe; /* blue-100 */
+    --primary-subtle-fg: #dbeafe;
 
-    --accent: #22d3ee; /* cyan-400 */
-    --accent-hover: #67e8f9; /* cyan-300 */
-    --accent-fg: #083344; /* cyan-950 */
-    --accent-subtle: #0b2b33;
-    --accent-subtle-fg: #67e8f9; /* cyan-300 */
+    /* The brand's own lime swatch, used at full strength - unlike light
+       theme, a near-black ground makes this legible with no toning down.
+       MEASURED: near-black text (--bg's own dark near-black, same value
+       used for --accent-fg) on #c8ff3d is >15:1. */
+    --accent: #c8ff3d; /* lime, brand swatch */
+    --accent-hover: #b3e62e; /* lime, ~10% deeper, for hover contrast */
+    --accent-fg: #1a2e05; /* deep olive-black - >15:1 on --accent */
+    --accent-subtle: #1f2b0a;
+    --accent-subtle-fg: #d9ff70;
 
     --destructive: #ef4444;
     --destructive-hover: #f87171;
@@ -222,10 +226,6 @@
     --info-subtle: #16233a;
     --info-subtle-fg: #93c5fd;
 
-    /* Brighter on a near-black ground, where the light-theme value goes muddy.
-       MEASURED on --bg: orange-400 8.7:1. */
-    --warm-orange: #fb923c; /* orange-400 */
-
     /* Solved to match the light ratios above, not eyeballed. */
     --illo-body: color-mix(in srgb, var(--text) 9.7%, var(--bg));
     --illo-body-2: color-mix(in srgb, var(--text) 14%, var(--bg));
@@ -233,7 +233,7 @@
     --illo-detail: color-mix(in srgb, var(--text) 27.7%, var(--bg));
     --illo-deep: color-mix(in srgb, var(--text) 35.3%, var(--bg));
 
-    --ring: #22d3ee; /* cyan-400 */
+    --ring: #c8ff3d; /* lime, same as --accent */
 
     /* Pronounced in dark: there is no ambient light, so depth has to be drawn
        rather than implied - the shadow is what lifts a card off the page. */
@@ -256,17 +256,17 @@
   --text: #f1f5f9;
   --text-muted: #94a3b8;
 
-  --primary: #93c5fd;
-  --primary-hover: #bfdbfe;
-  --primary-fg: #172554;
+  --primary: #2457ff;
+  --primary-hover: #1f4ad9;
+  --primary-fg: #ffffff;
   --primary-subtle: #1b2a4a;
   --primary-subtle-fg: #dbeafe;
 
-  --accent: #22d3ee;
-  --accent-hover: #67e8f9;
-  --accent-fg: #083344;
-  --accent-subtle: #0b2b33;
-  --accent-subtle-fg: #67e8f9;
+  --accent: #c8ff3d;
+  --accent-hover: #b3e62e;
+  --accent-fg: #1a2e05;
+  --accent-subtle: #1f2b0a;
+  --accent-subtle-fg: #d9ff70;
 
   --destructive: #ef4444;
   --destructive-hover: #f87171;
@@ -286,15 +286,13 @@
   --info-subtle: #16233a;
   --info-subtle-fg: #93c5fd;
 
-  --warm-orange: #fb923c;
-
   --illo-body: color-mix(in srgb, var(--text) 9.7%, var(--bg));
   --illo-body-2: color-mix(in srgb, var(--text) 14%, var(--bg));
   --illo-ring: color-mix(in srgb, var(--text) 19.5%, var(--bg));
   --illo-detail: color-mix(in srgb, var(--text) 27.7%, var(--bg));
   --illo-deep: color-mix(in srgb, var(--text) 35.3%, var(--bg));
 
-  --ring: #22d3ee;
+  --ring: #c8ff3d;
 
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
   --shadow-md: 0 2px 6px -1px rgb(0 0 0 / 0.6), 0 6px 16px -3px rgb(0 0 0 / 0.5);
@@ -308,17 +306,21 @@
    a raw CSS length. */
 
 :root {
-  /* The brand cyan, at full saturation. DECORATIVE AND ICON FILLS ONLY -
-     never text, and never the only thing carrying a meaning.
+  /* The brand's own lime swatch, at full saturation. DECORATIVE AND ICON
+     FILLS ONLY - never text, and never the only thing carrying a meaning.
 
-     It is 2.6:1 on the light background, under the 3:1 that even a meaningful
+     It is 1.12:1 on the light background, nowhere near the 3:1 a meaningful
      graphic needs, so it must always sit beside a text label saying the same
-     thing. If an icon has to stand on its own, use --accent.
+     thing (or on a dark-enough fill - see --accent-fg's own colours). If an
+     icon has to stand on its own against a plain page background, use
+     --accent instead.
 
-     Deliberately one value for both themes rather than a light/dark pair: this
-     is a brand constant, not a surface colour. It reads as the same cyan on
-     white as it does on near-black, where it measures 7.4:1. */
-  --accent-vivid: #06b6d4; /* cyan-500 */
+     Deliberately one value for both themes rather than a light/dark pair:
+     this is a brand constant, not a surface colour. It also does double duty
+     as landing-page decoration (gradient washes, the hero's highlighted
+     word) that used to run on the now-retired --warm-orange - one energetic
+     accent instead of an accent-plus-a-third-colour. */
+  --accent-vivid: #c8ff3d; /* lime, brand swatch */
 
   --space-1: 4px;
   --space-2: 8px;
@@ -362,10 +364,6 @@
   --color-accent-fg: var(--accent-fg);
   --color-accent-subtle: var(--accent-subtle);
   --color-accent-subtle-fg: var(--accent-subtle-fg);
-
-  /* Landing page only, and decorative there - washes, illustration fills and
-     one highlighted display word. Never a control, a status or a label. */
-  --color-warm-orange: var(--warm-orange);
 
   --color-destructive: var(--destructive);
   --color-destructive-hover: var(--destructive-hover);
